@@ -12,7 +12,7 @@ def load_data(data_path, lang, data_type):
     :param data_type: Type of data to load (train or test).
     :return: List of train, dev and test loaders.
     """
-    with open("../config/seeds.txt", "r") as fp:
+    with open("config/seeds.txt", "r") as fp:
         seeds = fp.read().splitlines()
 
     datasets = []

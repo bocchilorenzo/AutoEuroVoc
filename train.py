@@ -104,11 +104,11 @@ def start_train():
     Launch the training of the models.
     """
     # Load the configuration for the models of all languages
-    with open("../config/models.yml", "r") as config_fp:
+    with open("config/models.yml", "r") as config_fp:
         config = yaml.safe_load(config_fp)
     
     # Load the seeds for the different splits
-    with open("../config/seeds.txt", "r") as seeds_fp:
+    with open("config/seeds.txt", "r") as seeds_fp:
         seeds = seeds_fp.readlines()
 
     print("Working on device: {}\n".format(args.device))
@@ -197,11 +197,11 @@ def start_train():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--lang", type=str, default="all", help="Language to train the model on.")
-    parser.add_argument("--data_path", type=str, default="../data/", help="Path to the EuroVoc data.")
+    parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
     parser.add_argument("--epochs", type=int, default=30, help="Number of epochs to train the model.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to train on.")
-    parser.add_argument("--save_path", type=str, default="../models", help="Save path of the models")
+    parser.add_argument("--save_path", type=str, default="models/", help="Save path of the models")
     parser.add_argument("--max_grad_norm", type=int, default=5, help="Gradient clipping norm.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the prediction confidence.")
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate.")
