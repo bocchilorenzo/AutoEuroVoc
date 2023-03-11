@@ -1,6 +1,5 @@
 import argparse
-from torch.nn import Sigmoid
-from torch import Tensor, stack
+from torch import Tensor, stack, sigmoid
 from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer, EvalPrediction, AutoTokenizer
 import yaml
 from os import path, makedirs
@@ -35,7 +34,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
     :return: Dictionary with the metrics.
     """
     # Convert the predictions to binary
-    probs = Sigmoid(Tensor(predictions))
+    probs = sigmoid(Tensor(predictions))
     y_pred = (probs.detach().numpy() >= threshold).astype(int)
 
     # Compute the metrics
@@ -91,7 +90,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
         f"NDCG@5: {metrics['ndcg_5']}, NDCG@10: {metrics['ndcg_10']}"
     )
     current_epoch += 1
-    
+
     return metrics
 
 def compute_metrics(p: EvalPrediction):
