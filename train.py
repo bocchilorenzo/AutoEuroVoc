@@ -38,9 +38,9 @@ def get_metrics(y_true, predictions, threshold=0.5):
     y_pred = (probs.detach().numpy() >= threshold).astype(int)
 
     # Compute the metrics
-    f1_micro = f1_score(y_true=y_true, y_pred=y_pred, average='micro')
-    f1_macro = f1_score(y_true=y_true, y_pred=y_pred, average='macro')
-    f1_weighted = f1_score(y_true=y_true, y_pred=y_pred, average='weighted')
+    f1_micro = f1_score(y_true=y_true, y_pred=y_pred, average='micro', zero_division=0)
+    f1_macro = f1_score(y_true=y_true, y_pred=y_pred, average='macro', zero_division=0)
+    f1_weighted = f1_score(y_true=y_true, y_pred=y_pred, average='weighted', zero_division=0)
     roc_auc = roc_auc_score(y_true, y_pred, average = 'micro')
     hamming = hamming_loss(y_true, y_pred)
     accuracy = accuracy_score(y_true, y_pred)
@@ -83,12 +83,6 @@ def get_metrics(y_true, predictions, threshold=0.5):
         'ndcg_5': ndcg_5,
         'ndcg_10': ndcg_10
     }
-    print(
-        f"Metrics for epoch {current_epoch}:\nF1 micro: {metrics['f1_micro']}, F1 macro: {metrics['f1_macro']}, "
-        f"F1 weighted: {metrics['f1_weighted']}, ROC AUC: {metrics['roc_auc']}, Hamming loss: {metrics['hamming']}, "
-        f"Accuracy: {metrics['accuracy']}, NDCG@1: {metrics['ndcg_1']}, NDCG@3: {metrics['ndcg_3']}, "
-        f"NDCG@5: {metrics['ndcg_5']}, NDCG@10: {metrics['ndcg_10']}"
-    )
     current_epoch += 1
 
     return metrics
