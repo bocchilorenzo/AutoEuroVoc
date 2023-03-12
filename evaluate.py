@@ -45,8 +45,6 @@ def get_metrics(y_true, predictions, threshold=0.5):
         "metrics.json"), "w") as metrics_fp:
         json.dump(metrics, metrics_fp, indent=2)
 
-    current_epoch += 1
-
     return metrics
 
 def compute_metrics(p: EvalPrediction):
@@ -70,7 +68,6 @@ def start_evaluate():
 
     print(f"Working on device: {args.device}")
 
-    
     global language
 
     # Evaluate the models for all languages
