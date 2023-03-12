@@ -137,6 +137,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to train on.")
     parser.add_argument("--models_path", type=str, default="models/", help="Path of the saved models.")
+    parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the predictions.")
     args = parser.parse_args()
 
     start_evaluate()
