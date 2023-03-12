@@ -29,16 +29,14 @@ def get_metrics(y_true, predictions, threshold=0.5):
     )
 
     # Save the classification report
-    if args.save_class_report:
-        if current_epoch % args.class_report_step == 0:
-            with open(path.join(
-                args.models_path,
-                language,
-                str(current_split),
-                "evaluation",
-                f"class_report_train_{language}.json",
-                ), "w") as class_report_fp:
-                    json.dump(class_report, class_report_fp, indent=2)
+    with open(path.join(
+        args.models_path,
+        language,
+        str(current_split),
+        "evaluation",
+        f"class_report_train_{language}.json",
+        ), "w") as class_report_fp:
+        json.dump(class_report, class_report_fp, indent=2)
     
     # Save the metrics
     with open(path.join(
@@ -47,7 +45,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
         str(current_split),
         "evaluation",
         f"metrics_train_{language}.json"), "w") as metrics_fp:
-            json.dump(metrics, metrics_fp, indent=2)
+        json.dump(metrics, metrics_fp, indent=2)
 
     current_epoch += 1
 
