@@ -21,4 +21,5 @@ WIP
 ## TODO
 
 [ ] Add download script
-[ ] Add evaluation script
+
+[X] Add evaluation script

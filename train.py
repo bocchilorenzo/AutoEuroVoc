@@ -1,28 +1,13 @@
 import argparse
-from torch import Tensor, stack, sigmoid
+from torch import Tensor, sigmoid
 from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer, EvalPrediction, AutoTokenizer
 import yaml
 from os import path, makedirs
-from load import load_data
-from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, hamming_loss, ndcg_score
+from utils import sklearn_metrics, data_collator_tensordataset, load_data
 
 language = ""
 current_epoch = 0
 current_split = 0
-
-def data_collator_tensordataset(features):
-    """
-    Custom data collator for datasets of the type TensorDataset.
-
-    :param features: List of features.
-    :return: Batch.
-    """
-    batch = {}
-    batch['input_ids'] = stack([f[0] for f in features])
-    batch['attention_mask'] = stack([f[1] for f in features])
-    batch['labels'] = stack([f[2] for f in features])
-    
-    return batch
 
 def get_metrics(y_true, predictions, threshold=0.5):
     """
@@ -33,56 +18,16 @@ def get_metrics(y_true, predictions, threshold=0.5):
     :param threshold: Threshold for the predictions. Default: 0.5.
     :return: Dictionary with the metrics.
     """
-    # Convert the predictions to binary
-    probs = sigmoid(Tensor(predictions))
-    y_pred = (probs.detach().numpy() >= threshold).astype(int)
-
-    # Compute the metrics
-    f1_micro = f1_score(y_true=y_true, y_pred=y_pred, average='micro', zero_division=0)
-    f1_macro = f1_score(y_true=y_true, y_pred=y_pred, average='macro', zero_division=0)
-    f1_weighted = f1_score(y_true=y_true, y_pred=y_pred, average='weighted', zero_division=0)
-    roc_auc = roc_auc_score(y_true, y_pred, average = 'micro')
-    hamming = hamming_loss(y_true, y_pred)
-    accuracy = accuracy_score(y_true, y_pred)
-    ndcg_1 = ndcg_score(y_true, y_pred, k=1)
-    ndcg_3 = ndcg_score(y_true, y_pred, k=3)
-    ndcg_5 = ndcg_score(y_true, y_pred, k=5)
-    ndcg_10 = ndcg_score(y_true, y_pred, k=10)
-
     global current_epoch
     global language
     global current_split
 
-    # Save the classification report
-    if args.save_class_report:
-        if current_epoch % args.class_report_step == 0:
-            class_report = classification_report(
-                y_true, y_pred, zero_division=0, output_dict=True, digits=4
-            )
-            class_report = {
-                key: value for key, value in class_report.items() if key.isnumeric() and value['support'] > 0
-            }
-            with open(path.join(
-                            args.save_path,
-                            language,
-                            "classification_report",
-                            f"class_report_train_{language}_{current_split}_{current_epoch}.json",
-                        ), "w") as class_report_fp:
-                class_report_fp.write(str(class_report))
+    metrics, _ = sklearn_metrics(
+        y_true,
+        predictions,
+        threshold
+    )
 
-    # Return as dictionary
-    metrics = {
-        'f1_micro': f1_micro,
-        'f1_macro': f1_macro,
-        'f1_weighted': f1_weighted,
-        'roc_auc': roc_auc,
-        'hamming': hamming,
-        'accuracy': accuracy,
-        'ndcg_1': ndcg_1,
-        'ndcg_3': ndcg_3,
-        'ndcg_5': ndcg_5,
-        'ndcg_10': ndcg_10
-    }
     current_epoch += 1
 
     return metrics
@@ -110,11 +55,11 @@ def start_train():
     with open("config/seeds.txt", "r") as seeds_fp:
         seeds = seeds_fp.readlines()
 
-    print("Working on device: {}\n".format(args.device))
+    print(f"Working on device: {args.device}")
 
     # Create the directory for the models
-    if not path.exists(args.save_path):
-        makedirs(args.save_path)
+    if not path.exists(args.models_path):
+        makedirs(args.models_path)
 
     # Train the models for all languages
     for lang in config.keys():
@@ -127,17 +72,17 @@ def start_train():
         # Load the data
         datasets = load_data(args.data_path, lang, "train")
 
-        # Create the directory for the models of the current language
-        makedirs(path.join(args.save_path, lang), exist_ok=True)
-
-        # Create the directory for the classification report of the current language
-        if args.save_class_report:
-            makedirs(path.join(args.save_path, lang, "classification_report"), exist_ok=True)
-
         # Train the models for all splits
         for split_idx, (train_set, dev_set, num_classes) in enumerate(
             datasets
         ):
+            # Create the directory for the models of the current language
+            makedirs(path.join(args.models_path, lang, str(split_idx)), exist_ok=True)
+
+            # Create the directory for the classification report of the current language
+            if args.save_class_report:
+                makedirs(path.join(args.models_path, lang, str(split_idx), "classification_report"), exist_ok=True)
+            
             global current_split
             current_split = split_idx
             print(f"\nTraining for language: '{lang}' using: '{config[lang]}'...")
@@ -156,7 +101,7 @@ def start_train():
 
             # Create the training arguments.
             train_args = TrainingArguments(
-                path.join(args.save_path, lang),
+                path.join(args.models_path, lang),
                 evaluation_strategy = "epoch",
                 learning_rate=args.learning_rate,
                 max_grad_norm=args.max_grad_norm,
@@ -164,12 +109,12 @@ def start_train():
                 lr_scheduler_type="linear",
                 warmup_steps=len(train_set),
                 logging_strategy="epoch",
-                logging_dir=path.join(args.save_path, lang, 'logs'),
+                logging_dir=path.join(args.models_path, lang, str(split_idx), 'logs'),
                 save_strategy = "epoch",
                 no_cuda = no_cuda,
                 seed = int(seeds[split_idx]),
                 load_best_model_at_end=True,
-                save_total_limit=3,
+                save_total_limit=1,
                 metric_for_best_model="f1_micro",
                 optim="adamw_torch",
                 optim_args="correct_bias=True",
@@ -200,7 +145,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=30, help="Number of epochs to train the model.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
     parser.add_argument("--device", type=str, default="cpu", help="Device to train on.")
-    parser.add_argument("--save_path", type=str, default="models/", help="Save path of the models")
+    parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models")
     parser.add_argument("--max_grad_norm", type=int, default=5, help="Gradient clipping norm.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the prediction confidence.")
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate.")

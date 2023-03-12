@@ -1,7 +1,61 @@
-import os
+from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, hamming_loss, ndcg_score, precision_score, recall_score
+from torch import sigmoid, Tensor, stack, from_numpy
+import os 
 import numpy as np
-from torch import from_numpy
 from torch.utils.data import TensorDataset
+
+def sklearn_metrics(y_true, predictions, threshold=0.5):
+    # Convert the predictions to binary
+    probs = sigmoid(Tensor(predictions))
+    y_pred = (probs.detach().numpy() >= threshold).astype(int)
+
+    # Compute the metrics
+    f1_micro = f1_score(y_true=y_true, y_pred=y_pred, average='micro', zero_division=0)
+    f1_macro = f1_score(y_true=y_true, y_pred=y_pred, average='macro', zero_division=0)
+    f1_weighted = f1_score(y_true=y_true, y_pred=y_pred, average='weighted', zero_division=0)
+    roc_auc = roc_auc_score(y_true, y_pred, average = 'micro')
+    precision = precision_score(y_true, y_pred, average = 'micro', zero_division=0)
+    recall = recall_score(y_true, y_pred, average = 'micro', zero_division=0)
+    hamming = hamming_loss(y_true, y_pred)
+    accuracy = accuracy_score(y_true, y_pred)
+    ndcg_1 = ndcg_score(y_true, y_pred, k=1)
+    ndcg_3 = ndcg_score(y_true, y_pred, k=3)
+    ndcg_5 = ndcg_score(y_true, y_pred, k=5)
+    ndcg_10 = ndcg_score(y_true, y_pred, k=10)
+    class_report = classification_report(y_true, y_pred, zero_division=0, output_dict=True, digits=4)
+    class_report = {
+        key: value for key, value in class_report.items() if key.isnumeric() and value['support'] > 0
+    }
+
+    # Return as dictionary
+    return {
+        'f1_micro': f1_micro,
+        'f1_macro': f1_macro,
+        'f1_weighted': f1_weighted,
+        'roc_auc': roc_auc,
+        'precision': precision,
+        'recall': recall,
+        'hamming': hamming,
+        'accuracy': accuracy,
+        'ndcg_1': ndcg_1,
+        'ndcg_3': ndcg_3,
+        'ndcg_5': ndcg_5,
+        'ndcg_10': ndcg_10
+    }, class_report
+
+def data_collator_tensordataset(features):
+    """
+    Custom data collator for datasets of the type TensorDataset.
+
+    :param features: List of features.
+    :return: Batch.
+    """
+    batch = {}
+    batch['input_ids'] = stack([f[0] for f in features])
+    batch['attention_mask'] = stack([f[1] for f in features])
+    batch['labels'] = stack([f[2] for f in features])
+    
+    return batch
 
 def load_data(data_path, lang, data_type):
     """
