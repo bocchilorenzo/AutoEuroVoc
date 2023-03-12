@@ -6,7 +6,6 @@ from utils import sklearn_metrics, data_collator_tensordataset, load_data
 import json
 
 language = ""
-current_epoch = 0
 current_split = 0
 
 def get_metrics(y_true, predictions, threshold=0.5):
@@ -18,7 +17,6 @@ def get_metrics(y_true, predictions, threshold=0.5):
     :param threshold: Threshold for the predictions. Default: 0.5.
     :return: Dictionary with the metrics.
     """
-    global current_epoch
     global language
     global current_split
 
@@ -34,7 +32,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
         language,
         str(current_split),
         "evaluation",
-        f"class_report_train_{language}.json",
+        "class_report.json",
         ), "w") as class_report_fp:
         json.dump(class_report, class_report_fp, indent=2)
     
@@ -44,7 +42,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
         language,
         str(current_split),
         "evaluation",
-        f"metrics_train_{language}.json"), "w") as metrics_fp:
+        "metrics.json"), "w") as metrics_fp:
         json.dump(metrics, metrics_fp, indent=2)
 
     current_epoch += 1
@@ -72,9 +70,8 @@ def start_evaluate():
 
     print(f"Working on device: {args.device}")
 
-    """ # Create the directory for the output
-    if not path.exists(args.output_path):
-        makedirs(args.output_path) """
+    
+    global language
 
     # Evaluate the models for all languages
     for lang in config.keys():
@@ -82,6 +79,8 @@ def start_evaluate():
         if args.lang != "all" and args.lang != lang:
             continue
         
+        language = lang
+
         # Load the data
         datasets = load_data(args.data_path, lang, "test")
 
