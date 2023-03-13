@@ -1,5 +1,4 @@
 import argparse
-from torch import Tensor, sigmoid
 from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer, EvalPrediction, AutoTokenizer
 import yaml
 from os import path, makedirs
@@ -101,7 +100,7 @@ def start_train():
 
             # Create the training arguments.
             train_args = TrainingArguments(
-                path.join(args.models_path, lang),
+                path.join(args.models_path, lang, str(split_idx)),
                 evaluation_strategy = "epoch",
                 learning_rate=args.learning_rate,
                 max_grad_norm=args.max_grad_norm,

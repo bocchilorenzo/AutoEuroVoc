@@ -7,6 +7,7 @@ import json
 
 language = ""
 current_split = 0
+current_model = ""
 
 def get_metrics(y_true, predictions, threshold=0.5):
     """
@@ -19,6 +20,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
     """
     global language
     global current_split
+    global current_model
 
     metrics, class_report = sklearn_metrics(
         y_true,
@@ -28,9 +30,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
 
     # Save the classification report
     with open(path.join(
-        args.models_path,
-        language,
-        str(current_split),
+        current_model,
         "evaluation",
         "class_report.json",
         ), "w") as class_report_fp:
@@ -38,9 +38,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
     
     # Save the metrics
     with open(path.join(
-        args.models_path,
-        language,
-        str(current_split),
+        current_model,
         "evaluation",
         "metrics.json"), "w") as metrics_fp:
         json.dump(metrics, metrics_fp, indent=2)
@@ -69,6 +67,8 @@ def start_evaluate():
     print(f"Working on device: {args.device}")
 
     global language
+    global current_split
+    global current_model
 
     # Evaluate the models for all languages
     for lang in config.keys():
@@ -86,9 +86,8 @@ def start_evaluate():
                 path.join(args.models_path, lang, str(split_idx))
             ):
                 break
-
-            # Create the directory for the evaluation output
-            makedirs(path.join(args.models_path, lang, str(split_idx), "evaluation"), exist_ok=True)
+            
+            current_split = split_idx
 
             # Get the last checkpoint
             last_checkpoint = max(
@@ -100,6 +99,10 @@ def start_evaluate():
             )
             last_checkpoint = path.join(args.models_path, lang, str(split_idx), f"checkpoint-{last_checkpoint}")
 
+            # Create the directory for the evaluation output
+            makedirs(path.join(last_checkpoint, "evaluation"), exist_ok=True)
+            current_model = last_checkpoint
+
             # Load model and tokenizer
             print(f"\nEvaluating model: '{last_checkpoint}'...")
             tokenizer = AutoTokenizer.from_pretrained(last_checkpoint)
@@ -109,7 +112,7 @@ def start_evaluate():
             # Setup the evaluation
             trainer = Trainer(
                 args=TrainingArguments(
-                    path.join(args.models_path, lang, str(split_idx), "evaluation"),
+                    path.join(last_checkpoint, "evaluation"),
                     per_device_eval_batch_size=args.batch_size,
                     no_cuda = no_cuda
                 ),
