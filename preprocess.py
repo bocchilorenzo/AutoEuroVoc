@@ -6,8 +6,11 @@ from transformers import AutoTokenizer
 from skmultilearn.model_selection import IterativeStratification
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.utils import shuffle
-import torch
+from torch import tensor, ones_like
+from torch.nn.utils.rnn import pad_sequence
 import numpy as np
+import json
+import gzip
 
 seeds = []
 
@@ -75,13 +78,27 @@ def process_year(path, tokenizer, max_len=512):
     list_labels = []
     list_masks = []
 
-    with open(path, "r", encoding="utf-8") as file:
-        for line in file:
-            labels = [int(x) for x in line.split()[:-2]]
-            text = file.readline()
+    with gzip.open(path, "rb", encoding="utf-8") as file:
+        data = json.load(file)
+        for doc in data:
+            text = ""
+            labels = data[doc]["eurovoc_classifiers"] if "eurovoc_classifiers" in data[doc] else data[doc]["eurovoc"]
+            if args.add_title:
+                text = data[doc]["title"] + " "
+            if args.summarized:
+                full_text = data[doc]["full_text"]
+                phrase_importance = []
+                i = 0
+                for imp in data[doc]["importance"]:
+                    phrase_importance.append((i, imp))
+                    i += 1
+                phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
+                text += " ".join([full_text[phrase[0]] for phrase in phrase_importance[:args.num_phrases]])
+            else:
+                text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
             text = re.sub(r'\r', '', text)
             
-            inputs_ids = torch.tensor(tokenizer.encode(text))
+            inputs_ids = tensor(tokenizer.encode(text))
 
             document_ct += 1
 
@@ -97,14 +114,10 @@ def process_year(path, tokenizer, max_len=512):
 
             list_inputs.append(inputs_ids)
             list_labels.append(labels)
-            list_masks.append(torch.ones_like(inputs_ids))
+            list_masks.append(ones_like(inputs_ids))
 
-    print("Dataset stats: - total documents: {}, big documents: {}, ratio: {:.4f}%".format(document_ct,
-                                                                                          big_document_ct,
-                                                                                          big_document_ct / document_ct * 100))
-    print("              - total tokens: {}, unk tokens: {}, ratio: {:.4f}%".format(tokens_ct,
-                                                                                    unk_ct,
-                                                                                    unk_ct / tokens_ct * 100))
+    print("Dataset stats: - total documents: {}, big documents: {}, ratio: {:.4f}%".format(document_ct, big_document_ct, big_document_ct / document_ct * 100))
+    print("               - total tokens: {}, unk tokens: {}, ratio: {:.4f}%".format(tokens_ct, unk_ct, unk_ct / tokens_ct * 100))
 
     return list_inputs, list_masks, list_labels
 
@@ -123,22 +136,31 @@ def process_datasets(data_path, directory, tokenizer_name):
     list_labels = []
 
     if args.years == "0":
-        args.years = ",".join([str(year) for year in range(2022, 1949, -1)])
+        args.years = ",".join([str(year) for year in range(1949, 2022)])
+    else:
+        args.years = ",".join([str(year) for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]))])
 
-    for year in args.years.split(","):
-        print("Processing year: '{}'...".format(year))
-        year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}.txt"), tokenizer)
-        list_inputs += year_inputs
-        list_masks += year_masks
-        list_labels += year_labels
+    if directory == "senato":
+        list_inputs, list_masks, list_labels = process_year(os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer)
+    else:
+        for year in args.years.split(","):
+            if args.summarized:
+                print(f"Processing summarized year: '{year}'...")
+                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_summarized.json.gz"), tokenizer)
+            else:
+                print(f"Processing year: '{year}'...")
+                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer)
+            list_inputs += year_inputs
+            list_masks += year_masks
+            list_labels += year_labels
 
     assert len(list_inputs) == len(list_masks) == len(list_labels)
 
     mlb = MultiLabelBinarizer()
     y = mlb.fit_transform(list_labels)
 
-    X = torch.nn.utils.rnn.pad_sequence(list_inputs, batch_first=True, padding_value=tokenizer.pad_token_id).numpy()
-    masks = torch.nn.utils.rnn.pad_sequence(list_masks, batch_first=True, padding_value=0).numpy()
+    X = pad_sequence(list_inputs, batch_first=True, padding_value=tokenizer.pad_token_id).numpy()
+    masks = pad_sequence(list_masks, batch_first=True, padding_value=0).numpy()
 
     save_splits(X, masks, y, directory)
 
@@ -153,20 +175,32 @@ def preprocess_data():
     with open("../config/seeds.txt", "r") as fp:
         seeds = fp.read().splitlines()
 
-    print("Tokenizers config:\n{}\n".format(config))
+    print(f"Tokenizers config:\n{format(config)}")
+    
+    if args.senato:
+        print(f"\nWorking on Senato data...")
+        lang = "it"
+        print(f"Lang: '{lang}', Tokenizer: '{config[lang]}'")
+        process_datasets(args.data_path, "senato", config[lang], seeds)
+    else:
+        for directory in os.listdir(args.data_path):
+            if args.langs != "all" and directory[:2] not in args.langs.split(","):
+                continue
+            print(f"\nWorking on directory: {format(directory)}...")
+            lang = directory[:2]
+            print(f"Lang: '{lang}', Tokenizer: '{config[lang]}'")
 
-    for directory in os.listdir(args.data_path):
-        print("\nWorking on directory: {}...".format(directory))
-        lang = directory[:2]
-        print("Lang: '{}', Tokenizer: '{}'".format(lang, config[lang]))
-
-        process_datasets(args.data_path, directory, config[lang], seeds)
+            process_datasets(args.data_path, directory, config[lang], seeds)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the data to process.")
-    parser.add_argument("--years", type=str, default="0", help="Years to be processed, separated by a comma (e.g. 2022,2021).")
-
+    parser.add_argument("--years", type=str, default="0", help="Year range to be processed, separated by a comma (e.g. 2010,2020 will get all the years between 2010 and 2020 included). Write '0' to process all the years.")
+    parser.add_argument("--langs", type=str, default="it", help="Languages to be processed, separated by a comme (e.g. en,it). Write 'all' to process all the languages.")
+    parser.add_argument("--add_title", action="store_true", help="Add the title to the text.")
+    parser.add_argument("--senato", action="store_true", help="Process the Senato data instead of the EUR-Lex one.")
+    parser.add_argument("--summarized", action="store_true", help="Process the summarized data instead of the full text one.")
+    parser.add_argument("--num_phrases", type=int, default=10, help="Number of phrases to be extracted from the text. Only used if --summarized is also used.")
     args = parser.parse_args()
 
     preprocess_data()
