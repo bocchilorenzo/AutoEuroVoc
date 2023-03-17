@@ -153,7 +153,7 @@ def process_datasets(data_path, directory, tokenizer_name):
 
     # If no years are specified, process all the downloaded years.
     if args.years == "all":
-        args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if "summarized" not in year])
+        args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if "summarized" not in year and os.path.isfile(year) and year.endswith(".json.gz")])
     else:
         if "," in args.years:
             args.years = ",".join([str(year) for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]))])
