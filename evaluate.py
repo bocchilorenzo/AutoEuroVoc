@@ -6,7 +6,6 @@ from utils import sklearn_metrics, data_collator_tensordataset, load_data
 import json
 
 language = ""
-current_split = 0
 current_model = ""
 
 def get_metrics(y_true, predictions, threshold=0.5):
@@ -19,12 +18,13 @@ def get_metrics(y_true, predictions, threshold=0.5):
     :return: Dictionary with the metrics.
     """
     global language
-    global current_split
     global current_model
 
     metrics, class_report = sklearn_metrics(
         y_true,
         predictions,
+        args.data_path,
+        language,
         threshold,
     )
 
@@ -67,7 +67,6 @@ def start_evaluate():
     print(f"Working on device: {args.device}")
 
     global language
-    global current_split
     global current_model
 
     # Evaluate the models for all languages
@@ -86,8 +85,6 @@ def start_evaluate():
                 path.join(args.models_path, lang, str(split_idx))
             ):
                 break
-            
-            current_split = split_idx
 
             # Get the last checkpoint
             last_checkpoint = max(

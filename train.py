@@ -19,12 +19,13 @@ def get_metrics(y_true, predictions, threshold=0.5):
     """
     global current_epoch
     global language
-    global current_split
 
     metrics, _ = sklearn_metrics(
         y_true,
         predictions,
-        threshold
+        args.data_path,
+        language,
+        threshold,
     )
 
     current_epoch += 1
@@ -68,6 +69,7 @@ def start_train():
         
         global language
         language = lang
+
         # Load the data
         datasets = load_data(args.data_path, lang, "train")
 
@@ -147,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models")
     parser.add_argument("--max_grad_norm", type=int, default=5, help="Gradient clipping norm.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the prediction confidence.")
-    parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate.")
+    parser.add_argument("--learning_rate", type=float, default=3e-5, help="Learning rate.")
     parser.add_argument("--save_class_report", default=False, action="store_true", help="Save the classification report.")
     parser.add_argument("--class_report_step", type=int, default=1, help="Number of epochs before creating a new classification report.")
     parser.add_argument("--logging_step", type=int, default=100)

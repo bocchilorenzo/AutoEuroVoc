@@ -11,6 +11,7 @@ from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 import json
 import gzip
+import pickle
 
 seeds = []
 
@@ -43,22 +44,22 @@ def save_splits(X, masks, y, directory):
                                                                                      dev_X.shape[0],
                                                                                      test_X.shape[0]))
 
-        if not os.path.exists(os.path.join(args.data_path, directory, "split_{}".format(i))):
-            os.makedirs(os.path.join(args.data_path, directory, "split_{}".format(i)))
+        if not os.path.exists(os.path.join(args.data_path, directory, f"split_{i}")):
+            os.makedirs(os.path.join(args.data_path, directory, f"split_{i}"))
 
-        np.save(os.path.join(args.data_path, directory, "split_{}".format(i), "train_X.npy"), train_X)
-        np.save(os.path.join(args.data_path, directory, "split_{}".format(i), "train_mask.npy"), train_mask)
-        np.save(os.path.join(args.data_path, directory, "split_{}".format(i), "train_y.npy"), train_y)
+        np.save(os.path.join(args.data_path, directory, f"split_{i}", "train_X.npy"), train_X)
+        np.save(os.path.join(args.data_path, directory, f"split_{i}", "train_mask.npy"), train_mask)
+        np.save(os.path.join(args.data_path, directory, f"split_{i}", "train_y.npy"), train_y)
 
-        np.save(os.path.join(args.data_path, directory, "split_{}".format(i), "dev_X.npy"), dev_X)
-        np.save(os.path.join(args.data_path, directory, "split_{}".format(i), "dev_mask.npy"), dev_mask)
-        np.save(os.path.join(args.data_path, directory, "split_{}".format(i), "dev_y.npy"), dev_y)
+        np.save(os.path.join(args.data_path, directory, f"split_{i}", "dev_X.npy"), dev_X)
+        np.save(os.path.join(args.data_path, directory, f"split_{i}", "dev_mask.npy"), dev_mask)
+        np.save(os.path.join(args.data_path, directory, f"split_{i}", "dev_y.npy"), dev_y)
 
-        np.save(os.path.join(args.data_path, directory, "split_{}".format(i), "test_X.npy"), test_X)
-        np.save(os.path.join(args.data_path, directory, "split_{}".format(i), "test_mask.npy"), test_mask)
-        np.save(os.path.join(args.data_path, directory, "split_{}".format(i), "test_y.npy"), test_y)
+        np.save(os.path.join(args.data_path, directory, f"split_{i}", "test_X.npy"), test_X)
+        np.save(os.path.join(args.data_path, directory, f"split_{i}", "test_mask.npy"), test_mask)
+        np.save(os.path.join(args.data_path, directory, f"split_{i}", "test_y.npy"), test_y)
 
-        X, masks, y = shuffle(X, masks, y, random_state=seed)
+        X, masks, y = shuffle(X, masks, y, random_state=int(seed))
 
 def process_year(path, tokenizer, max_len=512):
     """
@@ -78,25 +79,40 @@ def process_year(path, tokenizer, max_len=512):
     list_labels = []
     list_masks = []
 
-    with gzip.open(path, "rb", encoding="utf-8") as file:
+    with gzip.open(path, "rt", encoding="utf-8") as file:
         data = json.load(file)
         for doc in data:
             text = ""
             labels = data[doc]["eurovoc_classifiers"] if "eurovoc_classifiers" in data[doc] else data[doc]["eurovoc"]
+
             if args.add_title:
                 text = data[doc]["title"] + " "
+            
             if args.summarized:
                 full_text = data[doc]["full_text"]
                 phrase_importance = []
                 i = 0
+
                 for imp in data[doc]["importance"]:
                     phrase_importance.append((i, imp))
                     i += 1
+                
                 phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
-                text += " ".join([full_text[phrase[0]] for phrase in phrase_importance[:args.num_phrases]])
+
+                if len(phrase_importance) > args.num_sentences:
+                    phrase_importance = phrase_importance[:args.num_sentences]
+                phrase_importance = sorted(phrase_importance, key=lambda x: x[0], reverse=True)
+                
+                text += " ".join([full_text[phrase[0]] for phrase in phrase_importance[:args.num_sentences]])
             else:
                 text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
+            
             text = re.sub(r'\r', '', text)
+            
+            # The following replacement is not necessary in the other datasets because it was already done.
+            if "senato" in path:
+                text = re.sub(r'\n', ' ', text)
+                text = re.sub(" +", " ", text).strip()
             
             inputs_ids = tensor(tokenizer.encode(text))
 
@@ -135,21 +151,28 @@ def process_datasets(data_path, directory, tokenizer_name):
     list_masks = []
     list_labels = []
 
-    if args.years == "0":
-        args.years = ",".join([str(year) for year in range(1949, 2022)])
+    # If no years are specified, process all the downloaded years.
+    if args.years == "all":
+        args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if "summarized" not in year])
     else:
-        args.years = ",".join([str(year) for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]))])
+        if "," in args.years:
+            args.years = ",".join([str(year) for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]))])
 
+    # If the dataset is the Senato one, there is only one file to process.
     if directory == "senato":
-        list_inputs, list_masks, list_labels = process_year(os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer)
+        list_inputs, list_masks, list_labels = process_year(os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer, max_len=args.max_length)
     else:
         for year in args.years.split(","):
-            if args.summarized:
+            if args.summarized and not args.bigrams:
                 print(f"Processing summarized year: '{year}'...")
-                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_summarized.json.gz"), tokenizer)
+                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_summarized.json.gz"), tokenizer, max_len=args.max_length)
+            elif args.summarized and args.bigrams:
+                print(f"Processing summarized (with bigrams) year: '{year}'...")
+                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_summarized_bigram.json.gz"), tokenizer, max_len=args.max_length)
             else:
                 print(f"Processing year: '{year}'...")
-                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer)
+                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, max_len=args.max_length)
+            
             list_inputs += year_inputs
             list_masks += year_masks
             list_labels += year_labels
@@ -162,17 +185,20 @@ def process_datasets(data_path, directory, tokenizer_name):
     X = pad_sequence(list_inputs, batch_first=True, padding_value=tokenizer.pad_token_id).numpy()
     masks = pad_sequence(list_masks, batch_first=True, padding_value=0).numpy()
 
+    with open(os.path.join(args.data_path, directory, "mlb_encoder.pickle"), "wb") as pickle_fp:
+        pickle.dump(mlb, pickle_fp, protocol=pickle.HIGHEST_PROTOCOL)
+    
     save_splits(X, masks, y, directory)
 
 def preprocess_data():
     """
     Load the configuration file and process the data.
     """
-    with open("../config/models.yml", "r") as fp:
+    with open("config/models.yml", "r") as fp:
         config = yaml.safe_load(fp)
     
     global seeds
-    with open("../config/seeds.txt", "r") as fp:
+    with open("config/seeds.txt", "r") as fp:
         seeds = fp.read().splitlines()
 
     print(f"Tokenizers config:\n{format(config)}")
@@ -181,26 +207,30 @@ def preprocess_data():
         print(f"\nWorking on Senato data...")
         lang = "it"
         print(f"Lang: '{lang}', Tokenizer: '{config[lang]}'")
-        process_datasets(args.data_path, "senato", config[lang], seeds)
+        process_datasets(args.data_path, "senato", config[lang])
     else:
         for directory in os.listdir(args.data_path):
+            # If we specified one or more languages, we only process those.
             if args.langs != "all" and directory[:2] not in args.langs.split(","):
                 continue
+            
             print(f"\nWorking on directory: {format(directory)}...")
             lang = directory[:2]
             print(f"Lang: '{lang}', Tokenizer: '{config[lang]}'")
 
-            process_datasets(args.data_path, directory, config[lang], seeds)
+            process_datasets(args.data_path, directory, config[lang])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the data to process.")
-    parser.add_argument("--years", type=str, default="0", help="Year range to be processed, separated by a comma (e.g. 2010,2020 will get all the years between 2010 and 2020 included). Write '0' to process all the years.")
+    parser.add_argument("--years", type=str, default="all", help="Year range to be processed, separated by a comma (e.g. 2010,2020 will get all the years between 2010 and 2020 included). Write 'all' to process all the years.")
     parser.add_argument("--langs", type=str, default="it", help="Languages to be processed, separated by a comme (e.g. en,it). Write 'all' to process all the languages.")
-    parser.add_argument("--add_title", action="store_true", help="Add the title to the text.")
-    parser.add_argument("--senato", action="store_true", help="Process the Senato data instead of the EUR-Lex one.")
-    parser.add_argument("--summarized", action="store_true", help="Process the summarized data instead of the full text one.")
-    parser.add_argument("--num_phrases", type=int, default=10, help="Number of phrases to be extracted from the text. Only used if --summarized is also used.")
+    parser.add_argument("--max_length", type=int, default=512, help="Maximum number of words of the text to be processed.")
+    parser.add_argument("--add_title", action="store_true", default=False, help="Add the title to the text.")
+    parser.add_argument("--senato", action="store_true", default=False, help="Process the Senato data instead of the EUR-Lex one.")
+    parser.add_argument("--summarized", action="store_true", default=False, help="Process the summarized data instead of the full text one.")
+    parser.add_argument("--bigrams", action="store_true", default=False, help="Use datasets summarized with bigrams instead of single words. Only used if --summarized is also used.")
+    parser.add_argument("--num_sentences", type=int, default=10, help="Number of sentences to be extracted from the text. Only used if --summarized is also used.")
     args = parser.parse_args()
 
     preprocess_data()
