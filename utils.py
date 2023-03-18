@@ -3,32 +3,16 @@ from torch import sigmoid, Tensor, stack, from_numpy
 import os 
 import numpy as np
 from torch.utils.data import TensorDataset
-import pickle
-import json
 
-def sklearn_metrics(y_true, predictions, data_path, language, threshold=0.5):
+def sklearn_metrics(y_true, predictions, threshold=0.5):
     """
     Return the metrics and classification report for the predictions.
     
     :param y_true: True labels.
     :param predictions: Predictions.
-    :param data_path: Path to the data.
-    :param language: Language.
     :param threshold: Threshold for the predictions. Default: 0.5.
     :return: A dictionary with the metrics and a classification report.
     """
-    # Load the label encoder
-    with open(os.path.join(data_path, language, "mlb_encoder.pickle"), "rb") as file:
-        mlb_encoder = pickle.load(file)
-    
-    # The domains and microthesaurus labels are loaded from the json files
-    with open("config/domain_labels_position.json", "r") as fp:
-        domain = json.load(fp)
-    with open("config/mt_labels_position.json", "r") as fp:
-        microthesaurus = json.load(fp)
-    with open("config/mt_labels.json", "r", encoding="utf-8") as file:
-        mt_labels = json.load(file)
-    
     # Convert the predictions to binary
     probs = sigmoid(Tensor(predictions))
     y_pred = (probs.detach().numpy() >= threshold).astype(int)
@@ -38,32 +22,7 @@ def sklearn_metrics(y_true, predictions, data_path, language, threshold=0.5):
     class_report = {
         key: value for key, value in class_report.items() if key.isnumeric() and value['support'] > 0
     }
-
-    true_labels = mlb_encoder.inverse_transform(y_true)
-    pred_labels = mlb_encoder.inverse_transform(y_pred)
-    true_labels_mt = np.zeros_like([*microthesaurus], dtype=np.int8)
-    true_labels_domain = np.zeros_like([*domain], dtype=np.int8)
-    pred_labels_mt = np.zeros_like([*microthesaurus], dtype=np.int8)
-    pred_labels_domain = np.zeros_like([*domain], dtype=np.int8)
-
-    # The true labels are split into MT and domain labels
-    for labels in true_labels:
-        for label in labels:
-            if str(label) in mt_labels:
-                if mt_labels[str(label)] in microthesaurus:
-                    true_labels_mt[microthesaurus[mt_labels[str(label)]]] = 1
-                if mt_labels[str(label)][:2] in domain:
-                    true_labels_domain[domain[mt_labels[str(label)][:2]]] = 1
-
-    # The predicted labels are split into MT and domain labels
-    for labels in pred_labels:
-        for label in labels:
-            if str(label) in mt_labels:
-                if mt_labels[str(label)] in microthesaurus:
-                    pred_labels_mt[microthesaurus[mt_labels[str(label)]]] = 1
-                if mt_labels[str(label)][:2] in domain:
-                    pred_labels_domain[domain[mt_labels[str(label)][:2]]] = 1
-
+    
     # Return all the metrics
     return {
         'f1_micro': f1_score(y_true=y_true, y_pred=y_pred, average='micro', zero_division=0),
@@ -78,22 +37,6 @@ def sklearn_metrics(y_true, predictions, data_path, language, threshold=0.5):
         'ndcg_3': ndcg_score(y_true, y_pred, k=3),
         'ndcg_5': ndcg_score(y_true, y_pred, k=5),
         'ndcg_10': ndcg_score(y_true, y_pred, k=10),
-        'f1_micro_mt': f1_score(y_true=true_labels_mt, y_pred=pred_labels_mt, average='micro', zero_division=0),
-        'f1_macro_mt': f1_score(y_true=true_labels_mt, y_pred=pred_labels_mt, average='macro', zero_division=0),
-        'f1_weighted_mt': f1_score(y_true=true_labels_mt, y_pred=pred_labels_mt, average='weighted', zero_division=0),
-        'f1_micro_domain': f1_score(y_true=true_labels_domain, y_pred=pred_labels_domain, average='micro', zero_division=0),
-        'f1_macro_domain': f1_score(y_true=true_labels_domain, y_pred=pred_labels_domain, average='macro', zero_division=0),
-        'f1_weighted_domain': f1_score(y_true=true_labels_domain, y_pred=pred_labels_domain, average='weighted', zero_division=0),
-        'roc_auc_mt': roc_auc_score(true_labels_mt, pred_labels_mt, average = 'micro'),
-        'roc_auc_domain': roc_auc_score(true_labels_domain, pred_labels_domain, average = 'micro'),
-        'precision_mt': precision_score(true_labels_mt, pred_labels_mt, average = 'micro', zero_division=0),
-        'precision_domain': precision_score(true_labels_domain, pred_labels_domain, average = 'micro', zero_division=0),
-        'recall_mt': recall_score(true_labels_mt, pred_labels_mt, average = 'micro', zero_division=0),
-        'recall_domain': recall_score(true_labels_domain, pred_labels_domain, average = 'micro', zero_division=0),
-        'hamming_mt': hamming_loss(true_labels_mt, pred_labels_mt),
-        'hamming_domain': hamming_loss(true_labels_domain, pred_labels_domain),
-        'accuracy_mt': accuracy_score(true_labels_mt, pred_labels_mt),
-        'accuracy_domain': accuracy_score(true_labels_domain, pred_labels_domain),
     }, class_report
 
 def data_collator_tensordataset(features):

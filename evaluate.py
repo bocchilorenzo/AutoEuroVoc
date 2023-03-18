@@ -17,14 +17,11 @@ def get_metrics(y_true, predictions, threshold=0.5):
     :param threshold: Threshold for the predictions. Default: 0.5.
     :return: Dictionary with the metrics.
     """
-    global language
     global current_model
 
     metrics, class_report = sklearn_metrics(
         y_true,
         predictions,
-        args.data_path,
-        language,
         threshold,
     )
 

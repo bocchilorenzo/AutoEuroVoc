@@ -18,13 +18,10 @@ def get_metrics(y_true, predictions, threshold=0.5):
     :return: Dictionary with the metrics.
     """
     global current_epoch
-    global language
 
     metrics, _ = sklearn_metrics(
         y_true,
         predictions,
-        args.data_path,
-        language,
         threshold,
     )
 
