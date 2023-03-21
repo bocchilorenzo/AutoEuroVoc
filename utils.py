@@ -1,6 +1,6 @@
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, hamming_loss, ndcg_score, precision_score, recall_score, jaccard_score, matthews_corrcoef
 from torch import sigmoid, Tensor, stack, from_numpy
-import os 
+import os
 import numpy as np
 from torch.utils.data import TensorDataset
 
@@ -24,7 +24,7 @@ def sklearn_metrics(y_true, predictions, threshold=0.5):
     }
 
     references = np.array(y_true)
-    predictions = np.array(predictions)
+    predictions = np.array(y_pred)
 
     matthews_corr = [
         matthews_corrcoef(predictions[:, i], references[:, i], sample_weight=None)
