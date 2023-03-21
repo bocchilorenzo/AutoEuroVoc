@@ -1,4 +1,4 @@
-from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, hamming_loss, ndcg_score, precision_score, recall_score
+from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, hamming_loss, ndcg_score, precision_score, recall_score, jaccard_score, matthews_corrcoef
 from torch import sigmoid, Tensor, stack, from_numpy
 import os 
 import numpy as np
@@ -22,12 +22,23 @@ def sklearn_metrics(y_true, predictions, threshold=0.5):
     class_report = {
         key: value for key, value in class_report.items() if key.isnumeric() and value['support'] > 0
     }
+
+    references = np.array(y_true)
+    predictions = np.array(predictions)
+
+    matthews_corr = [
+        matthews_corrcoef(predictions[:, i], references[:, i], sample_weight=None)
+        for i in range(references.shape[1])
+    ]
     
     # Return all the metrics
     return {
         'f1_micro': f1_score(y_true=y_true, y_pred=y_pred, average='micro', zero_division=0),
         'f1_macro': f1_score(y_true=y_true, y_pred=y_pred, average='macro', zero_division=0),
         'f1_weighted': f1_score(y_true=y_true, y_pred=y_pred, average='weighted', zero_division=0),
+        'f1_samples': f1_score(y_true=y_true, y_pred=y_pred, average='samples', zero_division=0),
+        'jaccard': jaccard_score(y_true, y_pred, average = 'micro', zero_division=0),
+        'matthews_macro': np.mean(matthews_corr),
         'roc_auc': roc_auc_score(y_true, y_pred, average = 'micro'),
         'precision': precision_score(y_true, y_pred, average = 'micro', zero_division=0),
         'recall': recall_score(y_true, y_pred, average = 'micro', zero_division=0),
