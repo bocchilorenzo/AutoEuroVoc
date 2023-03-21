@@ -123,10 +123,10 @@ def start_evaluate():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--lang", type=str, default="all", help="Language to train the model on.")
+    parser.add_argument("--lang", type=str, default="all", help="Language to evaluate the model on.")
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
-    parser.add_argument("--device", type=str, default="cpu", help="Device to train on.")
+    parser.add_argument("--device", type=str, default="cpu", help="Device to evaluate on.")
     parser.add_argument("--models_path", type=str, default="models/", help="Path of the saved models.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the predictions.")
     args = parser.parse_args()

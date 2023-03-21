@@ -135,6 +135,7 @@ def start_train():
 
             trainer.train()
 
+            # print(f"Best checkpoint path: {trainer.state.best_model_checkpoint}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)

@@ -15,6 +15,14 @@ import pickle
 
 seeds = []
 
+# The domains and microthesaurus labels are loaded from the json files
+with open("config/domain_labels_position.json", "r") as fp:
+    domain = json.load(fp)
+with open("config/mt_labels_position.json", "r") as fp:
+    microthesaurus = json.load(fp)
+with open("config/mt_labels.json", "r", encoding="utf-8") as file:
+    mt_labels = json.load(file)
+
 def save_splits(X, masks, y, directory):
     """
     Save the splits of the dataset.
@@ -83,7 +91,20 @@ def process_year(path, tokenizer, max_len=512):
         data = json.load(file)
         for doc in data:
             text = ""
-            labels = data[doc]["eurovoc_classifiers"] if "eurovoc_classifiers" in data[doc] else data[doc]["eurovoc"]
+            if args.add_mt_do:
+                # Add MT and DO labels
+                labels = set(data[doc]["eurovoc_classifiers"]) if "eurovoc_classifiers" in data[doc] else set(data[doc]["eurovoc"])
+                to_add = set()
+                for label in labels:
+                    if label in mt_labels:
+                        if mt_labels[label] in microthesaurus:
+                            to_add.add(mt_labels[label] + "_mt")
+                        if mt_labels[label][:2] in domain:
+                            to_add.add(mt_labels[label][:2] + "_do")
+                
+                labels = list(labels.union(to_add))
+            else:
+                labels = data[doc]["eurovoc_classifiers"] if "eurovoc_classifiers" in data[doc] else data[doc]["eurovoc"]
 
             if args.add_title:
                 text = data[doc]["title"] + " "
@@ -227,6 +248,7 @@ if __name__ == "__main__":
     parser.add_argument("--langs", type=str, default="it", help="Languages to be processed, separated by a comme (e.g. en,it). Write 'all' to process all the languages.")
     parser.add_argument("--max_length", type=int, default=512, help="Maximum number of words of the text to be processed.")
     parser.add_argument("--add_title", action="store_true", default=False, help="Add the title to the text.")
+    parser.add_argument("--add_mt_do", action="store_true", default=False, help="Add the MicroThesaurus and Domain labels to be predicted.")
     parser.add_argument("--senato", action="store_true", default=False, help="Process the Senato data instead of the EUR-Lex one.")
     parser.add_argument("--summarized", action="store_true", default=False, help="Process the summarized data instead of the full text one.")
     parser.add_argument("--bigrams", action="store_true", default=False, help="Use datasets summarized with bigrams instead of single words. Only used if --summarized is also used.")
