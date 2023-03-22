@@ -177,7 +177,9 @@ def process_datasets(data_path, directory, tokenizer_name):
         args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if "summarized" not in year and os.path.isfile(year) and year.endswith(".json.gz")])
     else:
         if "," in args.years:
-            args.years = ",".join([str(year) for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]))])
+            args.years = ",".join([str(year) for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
+    
+    print(f"Years to process: '{args.years}'")
 
     # If the dataset is the Senato one, there is only one file to process.
     if directory == "senato":
