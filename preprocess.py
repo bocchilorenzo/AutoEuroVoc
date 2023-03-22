@@ -12,6 +12,7 @@ import numpy as np
 import json
 import gzip
 import pickle
+import math
 
 seeds = []
 
@@ -115,7 +116,8 @@ def process_year(path, tokenizer, max_len=512):
                 i = 0
 
                 for imp in data[doc]["importance"]:
-                    phrase_importance.append((i, imp))
+                    if not math.isnan(imp):
+                        phrase_importance.append((i, imp))
                     i += 1
                 
                 phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
