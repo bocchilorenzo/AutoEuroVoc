@@ -90,7 +90,8 @@ def start_train():
             model = AutoModelForSequenceClassification.from_pretrained(
                 config[lang],
                 problem_type="multi_label_classification",
-                num_labels=num_classes
+                num_labels=num_classes,
+                trust_remote_code=True
             )
 
             # If the device specified via the arguments is "cpu", avoid using CUDA
