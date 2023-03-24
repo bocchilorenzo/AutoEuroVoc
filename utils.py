@@ -19,20 +19,23 @@ def sklearn_metrics(y_true, predictions, data_path, threshold=0.5, get_conf_matr
     probs = sigmoid(Tensor(predictions))
     y_pred = (probs.detach().numpy() >= threshold).astype(int)
 
-    # Create the classification report
-    class_report = classification_report(y_true, y_pred, zero_division=0, output_dict=True, digits=4)
-    class_report = {
-        key: value for key, value in class_report.items() if key.isnumeric() and value['support'] > 0
-    }
-
     if get_conf_matrix:
-        with open(os.path.join(data_path, 'mlb_encoder.pkl'), 'rb') as f:
+        with open(os.path.join(data_path, 'mlb_encoder.pickle'), 'rb') as f:
             mlb_encoder = pickle.load(f)
         
-        labels = mlb_encoder.inverse_transform(np.ones((y_true.shape[1], 1)))
-        conf_matrix = multilabel_confusion_matrix(y_true, y_pred, labels=labels)
+        labels = mlb_encoder.inverse_transform(np.ones((1, y_true.shape[1])))[0]
+        mlb_conf = multilabel_confusion_matrix(y_true, y_pred)
+        conf_matrix = {}
+        for i in range(len(labels)):
+            conf_matrix[labels[i]] = mlb_conf[i].tolist()
+        
+        class_report = classification_report(y_true, y_pred, zero_division=0, output_dict=True, digits=4)
+        class_report = {
+            key: value for key, value in class_report.items() if key.isnumeric()# and value['support'] > 0
+        }
     else:
         conf_matrix = None
+        class_report = None
 
     references = np.array(y_true)
     predictions = np.array(y_pred)
