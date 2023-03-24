@@ -19,9 +19,10 @@ def get_metrics(y_true, predictions, threshold=0.5):
     """
     global current_epoch
 
-    metrics, _ = sklearn_metrics(
+    metrics, _, _ = sklearn_metrics(
         y_true,
         predictions,
+        "",
         threshold,
     )
 

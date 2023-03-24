@@ -1,16 +1,18 @@
-from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, hamming_loss, ndcg_score, precision_score, recall_score, jaccard_score, matthews_corrcoef
+from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, hamming_loss, ndcg_score, precision_score, recall_score, jaccard_score, matthews_corrcoef, multilabel_confusion_matrix
 from torch import sigmoid, Tensor, stack, from_numpy
 import os
 import numpy as np
 from torch.utils.data import TensorDataset
+import pickle
 
-def sklearn_metrics(y_true, predictions, threshold=0.5):
+def sklearn_metrics(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False):
     """
     Return the metrics and classification report for the predictions.
     
     :param y_true: True labels.
     :param predictions: Predictions.
     :param threshold: Threshold for the predictions. Default: 0.5.
+    :param get_conf_matrix: If True, return the confusion matrix. Default: False.
     :return: A dictionary with the metrics and a classification report.
     """
     # Convert the predictions to binary
@@ -22,6 +24,15 @@ def sklearn_metrics(y_true, predictions, threshold=0.5):
     class_report = {
         key: value for key, value in class_report.items() if key.isnumeric() and value['support'] > 0
     }
+
+    if get_conf_matrix:
+        with open(os.path.join(data_path, 'mlb_encoder.pkl'), 'rb') as f:
+            mlb_encoder = pickle.load(f)
+        
+        labels = mlb_encoder.inverse_transform(np.ones((y_true.shape[1], 1)))
+        conf_matrix = multilabel_confusion_matrix(y_true, y_pred, labels=labels)
+    else:
+        conf_matrix = None
 
     references = np.array(y_true)
     predictions = np.array(y_pred)
@@ -48,7 +59,7 @@ def sklearn_metrics(y_true, predictions, threshold=0.5):
         'ndcg_3': ndcg_score(y_true, y_pred, k=3),
         'ndcg_5': ndcg_score(y_true, y_pred, k=5),
         'ndcg_10': ndcg_score(y_true, y_pred, k=10),
-    }, class_report
+    }, class_report, conf_matrix
 
 def data_collator_tensordataset(features):
     """

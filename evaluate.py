@@ -18,11 +18,14 @@ def get_metrics(y_true, predictions, threshold=0.5):
     :return: Dictionary with the metrics.
     """
     global current_model
+    global language
 
-    metrics, class_report = sklearn_metrics(
+    metrics, class_report, conf_matrix = sklearn_metrics(
         y_true,
         predictions,
+        path.join(args.data_path, language),
         threshold,
+        True,
     )
 
     # Save the classification report
@@ -32,6 +35,14 @@ def get_metrics(y_true, predictions, threshold=0.5):
         "class_report.json",
         ), "w") as class_report_fp:
         json.dump(class_report, class_report_fp, indent=2)
+
+    # Save the confusion matrix
+    with open(path.join(
+        current_model,
+        "evaluation",
+        "conf_matrix.json",
+        ), "w") as conf_matrix_fp:
+        json.dump({"confusion": conf_matrix}, conf_matrix_fp)
     
     # Save the metrics
     with open(path.join(
