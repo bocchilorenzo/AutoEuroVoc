@@ -92,7 +92,7 @@ def start_train():
                 config[lang],
                 problem_type="multi_label_classification",
                 num_labels=num_classes,
-                trust_remote_code=True
+                trust_remote_code=args.trust_remote,
             )
 
             # If the device specified via the arguments is "cpu", avoid using CUDA
@@ -149,6 +149,7 @@ if __name__ == "__main__":
     parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models")
     parser.add_argument("--max_grad_norm", type=int, default=5, help="Gradient clipping norm.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the prediction confidence.")
+    parser.add_argument("--trust_remote", action="store_true", default=False, help="Trust the remote code for the model.")
     parser.add_argument("--learning_rate", type=float, default=3e-5, help="Learning rate.")
     parser.add_argument("--save_class_report", default=False, action="store_true", help="Save the classification report.")
     parser.add_argument("--class_report_step", type=int, default=1, help="Number of epochs before creating a new classification report.")

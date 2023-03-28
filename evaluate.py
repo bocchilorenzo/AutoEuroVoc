@@ -42,7 +42,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
         "evaluation",
         "conf_matrix.json",
         ), "w") as conf_matrix_fp:
-        json.dump({"confusion": conf_matrix}, conf_matrix_fp)
+        json.dump(conf_matrix, conf_matrix_fp)
     
     # Save the metrics
     with open(path.join(
@@ -50,6 +50,8 @@ def get_metrics(y_true, predictions, threshold=0.5):
         "evaluation",
         "metrics.json"), "w") as metrics_fp:
         json.dump(metrics, metrics_fp, indent=2)
+    
+    print(metrics)
 
     return metrics
 
@@ -111,7 +113,7 @@ def start_evaluate():
             # Load model and tokenizer
             print(f"\nEvaluating model: '{last_checkpoint}'...")
             tokenizer = AutoTokenizer.from_pretrained(last_checkpoint)
-            model = AutoModelForSequenceClassification.from_pretrained(last_checkpoint)
+            model = AutoModelForSequenceClassification.from_pretrained(last_checkpoint, trust_remote_code=args.trust_remote)
             no_cuda = True if args.device == "cpu" else False
 
             # Setup the evaluation
@@ -140,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu", help="Device to evaluate on.")
     parser.add_argument("--models_path", type=str, default="models/", help="Path of the saved models.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the predictions.")
+    parser.add_argument("--trust_remote", action="store_true", default=False, help="Trust the remote code for the model.")
     args = parser.parse_args()
 
     start_evaluate()
