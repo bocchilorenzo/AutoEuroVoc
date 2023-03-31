@@ -3,9 +3,74 @@ from torch import sigmoid, Tensor, stack, from_numpy
 import os
 import numpy as np
 from torch.utils.data import TensorDataset
+from transformers import Trainer
+from torch import nn, Tensor
 import pickle
+import json
+    
+class CustomTrainer(Trainer):
+    """
+    Custom Trainer to compute the weighted BCE loss.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mlb_encoder = None
+        self.custom_weights = None
 
-def sklearn_metrics(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False):
+    def prepare_labels(self, data_path, language, split):
+        # Load the MultiLabelBinarizer
+        with open(os.path.join(data_path, language, "mlb_encoder.pickle"), "rb") as mlb_encoder_fp:
+            self.mlb_encoder = pickle.load(mlb_encoder_fp)
+        
+        # Load the weights
+        with open(os.path.join(data_path, language, f"split_{split}", "train_labs_count.json"), "r") as weights_fp:
+            data = json.load(weights_fp)
+            weights = []
+            """ # Approach with max weight in case of 0
+            for key in data["labels"]:
+                # Each weight is the inverse of the frequency of the label. Negative / positive
+                weights.append((data["total_samples"] - data["labels"][key])/data["labels"][key] if data["labels"][key] != 0 else None)
+            
+            # If the weight is None, set it to the maximum weight
+            max_weight = max([w for w in weights if w is not None])
+            weights = [w if w else max_weight for w in weights] """
+
+            for key in data["labels"]:
+                # Each weight is the inverse of the frequency of the label. Negative / positive
+                weights.append((data["total_samples"] - data["labels"][key] + 1e-10)/(data["labels"][key] + 1e-10))
+
+            self.custom_weights = Tensor(weights)
+    
+    def compute_loss(self, model, inputs, return_outputs=False):
+        """
+        Custom loss function to compute the weighted BCE loss.
+
+        :param model: Model to use.
+        :param inputs: Inputs to the model.
+        :param return_outputs: Whether to return the outputs. Default: False.
+        """
+        labels = inputs.get("labels")
+        outputs = model(**inputs)
+
+        if self.args.past_index >= 0:
+            self._past = outputs[self.args.past_index]
+
+        if labels is not None:
+            logits = outputs.get("logits")
+            loss_fct = nn.BCEWithLogitsLoss(pos_weight=self.custom_weights)
+            loss = loss_fct(logits, labels)
+        else:
+            if isinstance(outputs, dict) and "loss" not in outputs:
+                raise ValueError(
+                    "The model did not return a loss from the inputs, only the following keys: "
+                    f"{','.join(outputs.keys())}. For reference, the inputs it received are {','.join(inputs.keys())}."
+                )
+            # We don't use .loss here since the model may return tuples instead of ModelOutput.
+            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+
+        return (loss, outputs) if return_outputs else loss
+
+def sklearn_metrics(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False):
     """
     Return the metrics and classification report for the predictions.
     
@@ -13,6 +78,7 @@ def sklearn_metrics(y_true, predictions, data_path, threshold=0.5, get_conf_matr
     :param predictions: Predictions.
     :param threshold: Threshold for the predictions. Default: 0.5.
     :param get_conf_matrix: If True, return the confusion matrix. Default: False.
+    :param get_class_report: If True, return the classification report. Default: False.
     :return: A dictionary with the metrics and a classification report.
     """
     # Convert the predictions to binary
@@ -23,18 +89,21 @@ def sklearn_metrics(y_true, predictions, data_path, threshold=0.5, get_conf_matr
         with open(os.path.join(data_path, 'mlb_encoder.pickle'), 'rb') as f:
             mlb_encoder = pickle.load(f)
         
-        labels = mlb_encoder.inverse_transform(np.ones((1, y_true.shape[1])))[0]
+        # labels = mlb_encoder.inverse_transform(np.ones((1, y_true.shape[1])))[0]
+        labels = mlb_encoder.classes_.tolist()
         mlb_conf = multilabel_confusion_matrix(y_true, y_pred)
         conf_matrix = {}
         for i in range(len(labels)):
             conf_matrix[labels[i]] = mlb_conf[i].tolist()
-        
+    else:
+        conf_matrix = None
+    
+    if get_class_report:
         class_report = classification_report(y_true, y_pred, zero_division=0, output_dict=True, digits=4)
         class_report = {
             key: value for key, value in class_report.items() if key.isnumeric()# and value['support'] > 0
         }
     else:
-        conf_matrix = None
         class_report = None
 
     references = np.array(y_true)

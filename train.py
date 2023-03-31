@@ -1,8 +1,9 @@
 import argparse
-from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer, EvalPrediction, AutoTokenizer
+from transformers import AutoModelForSequenceClassification, TrainingArguments, EvalPrediction, AutoTokenizer, set_seed, Trainer
 import yaml
 from os import path, makedirs
-from utils import sklearn_metrics, data_collator_tensordataset, load_data
+from utils import sklearn_metrics, data_collator_tensordataset, load_data, CustomTrainer
+import json
 
 language = ""
 current_epoch = 0
@@ -18,13 +19,30 @@ def get_metrics(y_true, predictions, threshold=0.5):
     :return: Dictionary with the metrics.
     """
     global current_epoch
+    global language
+    global current_split
 
-    metrics, _, _ = sklearn_metrics(
+    metrics, class_report, _ = sklearn_metrics(
         y_true,
         predictions,
         "",
         threshold,
+        False,
+        args.save_class_report,
     )
+
+    if args.save_class_report:
+        if current_epoch % args.class_report_step == 0:
+            with open(path.join(
+                args.models_path,
+                language,
+                str(current_split),
+                "train_reports",
+                f"class_report_{current_epoch}.json",
+            ), "w") as class_report_fp:
+                class_report.update(metrics)
+                json.dump(class_report, class_report_fp, indent=2)
+
 
     current_epoch += 1
 
@@ -75,16 +93,19 @@ def start_train():
         for split_idx, (train_set, dev_set, num_classes) in enumerate(
             datasets
         ):
+            global current_split
+            current_split = split_idx
+
             # Create the directory for the models of the current language
             makedirs(path.join(args.models_path, lang, str(split_idx)), exist_ok=True)
 
             # Create the directory for the classification report of the current language
             if args.save_class_report:
-                makedirs(path.join(args.models_path, lang, str(split_idx), "classification_report"), exist_ok=True)
+                makedirs(path.join(args.models_path, lang, str(split_idx), "train_reports"), exist_ok=True)
             
-            global current_split
-            current_split = split_idx
             print(f"\nTraining for language: '{lang}' using: '{config[lang]}'...")
+            
+            set_seed(int(seeds[split_idx]))
 
             tokenizer = AutoTokenizer.from_pretrained(config[lang])
             
@@ -125,16 +146,29 @@ def start_train():
 
             # Create the trainer. It uses a custom data collator to convert the
             # dataset to a compatible dataset.
-            trainer = Trainer(
-                model,
-                train_args,
-                train_dataset=train_set,
-                eval_dataset=dev_set,
-                tokenizer=tokenizer,
-                data_collator=data_collator_tensordataset,
-                compute_metrics=compute_metrics
-            )
 
+            if args.weighted_loss:
+                trainer = CustomTrainer(
+                    model,
+                    train_args,
+                    train_dataset=train_set,
+                    eval_dataset=dev_set,
+                    tokenizer=tokenizer,
+                    data_collator=data_collator_tensordataset,
+                    compute_metrics=compute_metrics
+                )
+
+                trainer.prepare_labels(args.data_path, lang, split_idx)
+            else:
+                trainer = Trainer(
+                    model,
+                    train_args,
+                    train_dataset=train_set,
+                    eval_dataset=dev_set,
+                    tokenizer=tokenizer,
+                    data_collator=data_collator_tensordataset,
+                    compute_metrics=compute_metrics
+                )
             trainer.train()
 
             # print(f"Best checkpoint path: {trainer.state.best_model_checkpoint}")
@@ -143,17 +177,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--lang", type=str, default="all", help="Language to train the model on.")
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
+    parser.add_argument("--device", type=str, default="cpu", help="Device to train on.")
     parser.add_argument("--epochs", type=int, default=30, help="Number of epochs to train the model.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
-    parser.add_argument("--device", type=str, default="cpu", help="Device to train on.")
-    parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models")
+    parser.add_argument("--learning_rate", type=float, default=3e-5, help="Learning rate.")
     parser.add_argument("--max_grad_norm", type=int, default=5, help="Gradient clipping norm.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the prediction confidence.")
+    parser.add_argument("--weighted_loss", action="store_true", default=False, help="Use a weighted loss.")
     parser.add_argument("--trust_remote", action="store_true", default=False, help="Trust the remote code for the model.")
-    parser.add_argument("--learning_rate", type=float, default=3e-5, help="Learning rate.")
+    parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models")
     parser.add_argument("--save_class_report", default=False, action="store_true", help="Save the classification report.")
     parser.add_argument("--class_report_step", type=int, default=1, help="Number of epochs before creating a new classification report.")
-    parser.add_argument("--logging_step", type=int, default=100)
 
     args = parser.parse_args()
 

@@ -25,7 +25,7 @@ with open("config/mt_labels_position.json", "r") as fp:
 with open("config/mt_labels.json", "r", encoding="utf-8") as file:
     mt_labels = json.load(file)
 
-def save_splits(X, masks, y, directory):
+def save_splits(X, masks, y, directory, mlb):
     """
     Save the splits of the dataset.
     
@@ -33,6 +33,7 @@ def save_splits(X, masks, y, directory):
     :param masks: List of masks.
     :param y: List of labels.
     :param directory: Language directory.
+    :param mlb: MultiLabelBinarizer object.
     """
     global seeds
     for i, seed in enumerate(seeds):
@@ -68,6 +69,16 @@ def save_splits(X, masks, y, directory):
         np.save(os.path.join(args.data_path, directory, f"split_{i}", "test_X.npy"), test_X)
         np.save(os.path.join(args.data_path, directory, f"split_{i}", "test_mask.npy"), test_mask)
         np.save(os.path.join(args.data_path, directory, f"split_{i}", "test_y.npy"), test_y)
+
+        sample_labs = mlb.inverse_transform(train_y)
+        labs_count = {"total_samples": len(sample_labs), "labels": {label: 0 for label in mlb.classes_}}
+
+        for sample in sample_labs:
+            for label in sample:
+                labs_count["labels"][label] += 1
+        
+        with open(os.path.join(args.data_path, directory, f"split_{i}", "train_labs_count.json"), "w") as fp:
+            json.dump(labs_count, fp)
 
         X, masks, y = shuffle(X, masks, y, random_state=int(seed))
 
@@ -244,8 +255,8 @@ def process_datasets(data_path, directory, tokenizer_name):
 
     with open(os.path.join(args.data_path, directory, "mlb_encoder.pickle"), "wb") as pickle_fp:
         pickle.dump(mlb, pickle_fp, protocol=pickle.HIGHEST_PROTOCOL)
-    
-    save_splits(X, masks, y, directory)
+
+    save_splits(X, masks, y, directory, mlb)
 
 def preprocess_data():
     """

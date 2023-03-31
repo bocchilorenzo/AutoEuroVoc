@@ -1,7 +1,7 @@
 import argparse
 import yaml
 from os import path, makedirs, listdir
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, EvalPrediction, TrainingArguments
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, EvalPrediction, TrainingArguments, set_seed
 from utils import sklearn_metrics, data_collator_tensordataset, load_data
 import json
 
@@ -25,6 +25,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
         predictions,
         path.join(args.data_path, language),
         threshold,
+        True,
         True,
     )
 
@@ -87,6 +88,10 @@ def start_evaluate():
         
         language = lang
 
+        # Load the seeds for the different splits
+        with open("config/seeds.txt", "r") as seeds_fp:
+            seeds = seeds_fp.readlines()
+
         # Load the data
         datasets = load_data(args.data_path, lang, "test")
 
@@ -112,6 +117,7 @@ def start_evaluate():
 
             # Load model and tokenizer
             print(f"\nEvaluating model: '{last_checkpoint}'...")
+            set_seed(int(seeds[split_idx]))
             tokenizer = AutoTokenizer.from_pretrained(last_checkpoint)
             model = AutoModelForSequenceClassification.from_pretrained(last_checkpoint, trust_remote_code=args.trust_remote)
             no_cuda = True if args.device == "cpu" else False
@@ -121,6 +127,7 @@ def start_evaluate():
                 args=TrainingArguments(
                     path.join(last_checkpoint, "evaluation"),
                     per_device_eval_batch_size=args.batch_size,
+                    seed = int(seeds[split_idx]),
                     no_cuda = no_cuda
                 ),
                 model=model,
