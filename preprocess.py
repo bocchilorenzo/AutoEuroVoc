@@ -208,10 +208,25 @@ def process_datasets(data_path, directory, tokenizer_name):
         elif args.summarized and args.tfidf and args.bigrams and args.norm == "l2":
             args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith("_tfidf_l2_bigram.json.gz")])
     else:
-        if "," in args.years:
+        if "," not in args.years:
+            args.years += "," + args.years
+        
+        if not args.summarized:
             args.years = ",".join([str(year) for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
+        elif args.summarized and not args.bigrams and not args.tfidf:
+            args.years = ",".join([str(year) + "_summarized" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
+        elif args.summarized and args.bigrams and not args.tfidf:
+            args.years = ",".join([str(year) + "_summarized_bigram" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
+        elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l1":
+            args.years = ",".join([str(year) + "_tfidf_l1" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
+        elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l2":
+            args.years = ",".join([str(year) + "_tfidf_l2" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
+        elif args.summarized and args.tfidf and args.bigrams and args.norm == "l1":
+            args.years = ",".join([str(year) + "_tfidf_l1_bigram" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
+        elif args.summarized and args.tfidf and args.bigrams and args.norm == "l2":
+            args.years = ",".join([str(year) + "_tfidf_l2_bigram" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
     
-    print(f"Years to process: '{args.years}'")
+    print(f"Years to process: '{args.years}'\n")
 
     # If the dataset is the Senato one, there is only one file to process.
     if directory == "senato":
@@ -221,25 +236,19 @@ def process_datasets(data_path, directory, tokenizer_name):
         for year in args.years.split(","):
             if args.summarized and not args.bigrams and not args.tfidf:
                 print(f"Processing summarized year: '{year}'...")
-                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_summarized.json.gz"), tokenizer, max_len=args.max_length)
             elif args.summarized and args.bigrams and not args.tfidf:
                 print(f"Processing summarized (with bigrams) year: '{year}'...")
-                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_summarized_bigram.json.gz"), tokenizer, max_len=args.max_length)
             elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l1":
                 print(f"Processing summarized (with tf-idf and l1 norm) year: '{year}'...")
-                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_tfidf_l1.json.gz"), tokenizer, max_len=args.max_length)
             elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l2":
                 print(f"Processing summarized (with tf-idf and l2 norm) year: '{year}'...")
-                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_tfidf_l2.json.gz"), tokenizer, max_len=args.max_length)
             elif args.summarized and args.tfidf and args.bigrams and args.norm == "l1":
                 print(f"Processing summarized (with tf-idf, bigrams and l1 norm) year: '{year}'...")
-                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_tfidf_l1_bigram.json.gz"), tokenizer, max_len=args.max_length)
             elif args.summarized and args.tfidf and args.bigrams and args.norm == "l2":
                 print(f"Processing summarized (with tf-idf, bigrams and l2 norm) year: '{year}'...")
-                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}_tfidf_l2_bigram.json.gz"), tokenizer, max_len=args.max_length)
             else:
                 print(f"Processing year: '{year}'...")
-                year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, max_len=args.max_length)
+            year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, max_len=args.max_length)
             
             list_inputs += year_inputs
             list_masks += year_masks
