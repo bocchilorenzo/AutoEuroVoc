@@ -14,6 +14,7 @@ import gzip
 import pickle
 import math
 from copy import deepcopy
+from datetime import datetime
 
 seeds = []
 
@@ -102,7 +103,10 @@ def process_year(path, tokenizer, max_len=512):
 
     with gzip.open(path, "rt", encoding="utf-8") as file:
         data = json.load(file)
+        j = 1
         for doc in data:
+            print(f"{datetime.now().replace(microsecond=0)} - {j}/{len(data)}", end="\r")
+            j += 1
             text = ""
             if args.add_mt_do:
                 # Add MT and DO labels
