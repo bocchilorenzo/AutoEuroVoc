@@ -292,11 +292,11 @@ def preprocess_data():
     else:
         for directory in os.listdir(args.data_path):
             # If we specified one or more languages, we only process those.
-            if args.langs != "all" and directory[:2] not in args.langs.split(","):
+            if args.langs != "all" and directory not in args.langs.split(","):
                 continue
             
             print(f"\nWorking on directory: {format(directory)}...")
-            lang = directory[:2]
+            lang = directory
             print(f"Lang: '{lang}', Tokenizer: '{config[lang]}'")
 
             process_datasets(args.data_path, directory, config[lang])

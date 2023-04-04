@@ -162,7 +162,7 @@ def load_data(data_path, lang, data_type):
     datasets = []
 
     for directory in os.listdir(data_path):
-        if lang == directory[:2]:
+        if lang == directory:
             for i in range(len(seeds)):
                 if data_type == "train":
                     print("Loading training and dev data from directory {}...".format(os.path.join(data_path, directory, "split_{}".format(i))))
