@@ -146,7 +146,7 @@ if __name__ == "__main__":
     parser.add_argument("--lang", type=str, default="all", help="Language to evaluate the model on.")
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
-    parser.add_argument("--device", type=str, default="cpu", help="Device to evaluate on.")
+    parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to evaluate on.")
     parser.add_argument("--models_path", type=str, default="models/", help="Path of the saved models.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the predictions.")
     parser.add_argument("--trust_remote", action="store_true", default=False, help="Trust the remote code for the model.")

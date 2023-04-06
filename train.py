@@ -104,6 +104,8 @@ def start_train():
                 makedirs(path.join(args.models_path, lang, str(split_idx), "train_reports"), exist_ok=True)
             
             print(f"\nTraining for language: '{lang}' using: '{config[lang]}'...")
+
+            print(f"\nArguments: {vars(args)}")
             
             set_seed(int(seeds[split_idx]))
 
@@ -177,7 +179,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--lang", type=str, default="all", help="Language to train the model on.")
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
-    parser.add_argument("--device", type=str, default="cpu", help="Device to train on.")
+    parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to train on.")
     parser.add_argument("--epochs", type=int, default=30, help="Number of epochs to train the model.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
     parser.add_argument("--learning_rate", type=float, default=3e-5, help="Learning rate.")
