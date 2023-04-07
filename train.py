@@ -160,7 +160,7 @@ def start_train():
                     compute_metrics=compute_metrics
                 )
 
-                trainer.prepare_labels(args.data_path, lang, split_idx)
+                trainer.prepare_labels(args.data_path, lang, split_idx, args.device)
             else:
                 trainer = Trainer(
                     model,

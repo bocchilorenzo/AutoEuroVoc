@@ -17,7 +17,7 @@ class CustomTrainer(Trainer):
         self.mlb_encoder = None
         self.custom_weights = None
 
-    def prepare_labels(self, data_path, language, split):
+    def prepare_labels(self, data_path, language, split, device):
         # Load the MultiLabelBinarizer
         with open(os.path.join(data_path, language, "mlb_encoder.pickle"), "rb") as mlb_encoder_fp:
             self.mlb_encoder = pickle.load(mlb_encoder_fp)
@@ -39,7 +39,7 @@ class CustomTrainer(Trainer):
                 # Each weight is the inverse of the frequency of the label. Negative / positive
                 weights.append((data["total_samples"] - data["labels"][key] + 1e-10)/(data["labels"][key] + 1e-10))
 
-            self.custom_weights = Tensor(weights)
+            self.custom_weights = Tensor(weights).to(device)
     
     def compute_loss(self, model, inputs, return_outputs=False):
         """
