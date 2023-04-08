@@ -149,7 +149,7 @@ def start_train():
             # Create the trainer. It uses a custom data collator to convert the
             # dataset to a compatible dataset.
 
-            if args.weighted_loss:
+            if args.custom_loss:
                 trainer = CustomTrainer(
                     model,
                     train_args,
@@ -161,6 +161,9 @@ def start_train():
                 )
 
                 trainer.prepare_labels(args.data_path, lang, split_idx, args.device)
+
+                if args.weighted_loss:
+                    trainer.set_weighted_loss()
             else:
                 trainer = Trainer(
                     model,
@@ -185,7 +188,8 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=3e-5, help="Learning rate.")
     parser.add_argument("--max_grad_norm", type=int, default=5, help="Gradient clipping norm.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the prediction confidence.")
-    parser.add_argument("--weighted_loss", action="store_true", default=False, help="Use a weighted loss.")
+    parser.add_argument("--custom_loss", action="store_true", default=False, help="Enable the custom loss (focal loss by default).")
+    parser.add_argument("--weighted_loss", action="store_true", default=False, help="Enable the weighted bcewithlogits loss. Only works if the custom loss is enabled.")
     parser.add_argument("--trust_remote", action="store_true", default=False, help="Trust the remote code for the model.")
     parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models")
     parser.add_argument("--save_class_report", default=False, action="store_true", help="Save the classification report.")

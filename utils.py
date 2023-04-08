@@ -3,6 +3,7 @@ from torch import sigmoid, Tensor, stack, from_numpy
 import os
 import numpy as np
 from torch.utils.data import TensorDataset
+from torchvision.ops import focal_loss
 from transformers import Trainer
 from torch import nn, Tensor
 import pickle
@@ -16,8 +17,17 @@ class CustomTrainer(Trainer):
         super().__init__(*args, **kwargs)
         self.mlb_encoder = None
         self.custom_weights = None
+        self.use_focal_loss = True
 
     def prepare_labels(self, data_path, language, split, device):
+        """
+        Set the mlb encoder and the weights for the BCE loss.
+
+        :param data_path: Path to the data.
+        :param language: Language of the data.
+        :param split: Split of the data.
+        :param device: Device to use.
+        """
         # Load the MultiLabelBinarizer
         with open(os.path.join(data_path, language, "mlb_encoder.pickle"), "rb") as mlb_encoder_fp:
             self.mlb_encoder = pickle.load(mlb_encoder_fp)
@@ -40,10 +50,16 @@ class CustomTrainer(Trainer):
                 weights.append((data["total_samples"] - data["labels"][key] + 1e-10)/(data["labels"][key] + 1e-10))
 
             self.custom_weights = Tensor(weights).to(device)
+        
+    def set_weighted_loss(self):
+        """
+        Set the loss to the weighted BCE loss.
+        """
+        self.use_focal_loss = False
     
     def compute_loss(self, model, inputs, return_outputs=False):
         """
-        Custom loss function to compute the weighted BCE loss.
+        Custom loss function to compute either the focal loss or the weighted BCE loss.
 
         :param model: Model to use.
         :param inputs: Inputs to the model.
@@ -57,8 +73,12 @@ class CustomTrainer(Trainer):
 
         if labels is not None:
             logits = outputs.get("logits")
-            loss_fct = nn.BCEWithLogitsLoss(pos_weight=self.custom_weights)
-            loss = loss_fct(logits, labels)
+            
+            if self.use_focal_loss:
+                loss = focal_loss.sigmoid_focal_loss(logits, labels, reduction="mean")
+            else:
+                loss_fct = nn.BCEWithLogitsLoss(pos_weight=self.custom_weights)
+                loss = loss_fct(logits, labels)
         else:
             if isinstance(outputs, dict) and "loss" not in outputs:
                 raise ValueError(
