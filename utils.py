@@ -18,6 +18,8 @@ class CustomTrainer(Trainer):
         self.mlb_encoder = None
         self.custom_weights = None
         self.use_focal_loss = True
+        self.focal_alpha = 0.25
+        self.focal_gamma = 2
 
     def prepare_labels(self, data_path, language, split, device):
         """
@@ -56,6 +58,16 @@ class CustomTrainer(Trainer):
         Set the loss to the weighted BCE loss.
         """
         self.use_focal_loss = False
+
+    def set_focal_params(self, alpha, gamma):
+        """
+        Set the focal loss parameters.
+
+        :param alpha: Alpha parameter.
+        :param gamma: Gamma parameter.
+        """
+        self.focal_alpha = alpha
+        self.focal_gamma = gamma
     
     def compute_loss(self, model, inputs, return_outputs=False):
         """
@@ -75,7 +87,13 @@ class CustomTrainer(Trainer):
             logits = outputs.get("logits")
             
             if self.use_focal_loss:
-                loss = focal_loss.sigmoid_focal_loss(logits, labels, reduction="mean")
+                loss = focal_loss.sigmoid_focal_loss(
+                    logits,
+                    labels,
+                    reduction="mean",
+                    alpha=self.focal_alpha,
+                    gamma=self.focal_gamma
+                    )
             else:
                 loss_fct = nn.BCEWithLogitsLoss(pos_weight=self.custom_weights)
                 loss = loss_fct(logits, labels)
@@ -140,11 +158,11 @@ def sklearn_metrics(y_true, predictions, data_path, threshold=0.5, get_conf_matr
         'f1_macro': f1_score(y_true=y_true, y_pred=y_pred, average='macro', zero_division=0),
         'f1_weighted': f1_score(y_true=y_true, y_pred=y_pred, average='weighted', zero_division=0),
         'f1_samples': f1_score(y_true=y_true, y_pred=y_pred, average='samples', zero_division=0),
-        'jaccard': jaccard_score(y_true, y_pred, average = 'micro', zero_division=0),
+        'jaccard_micro': jaccard_score(y_true, y_pred, average = 'micro', zero_division=0),
         'matthews_macro': np.mean(matthews_corr),
-        'roc_auc': roc_auc_score(y_true, y_pred, average = 'micro'),
-        'precision': precision_score(y_true, y_pred, average = 'micro', zero_division=0),
-        'recall': recall_score(y_true, y_pred, average = 'micro', zero_division=0),
+        'roc_auc_micro': roc_auc_score(y_true, y_pred, average = 'micro'),
+        'precision_micro': precision_score(y_true, y_pred, average = 'micro', zero_division=0),
+        'recall_micro': recall_score(y_true, y_pred, average = 'micro', zero_division=0),
         'hamming': hamming_loss(y_true, y_pred),
         'accuracy': accuracy_score(y_true, y_pred),
         'ndcg_1': ndcg_score(y_true, y_pred, k=1),
@@ -188,15 +206,15 @@ def load_data(data_path, lang, data_type):
                     print("Loading training and dev data from directory {}...".format(os.path.join(data_path, directory, "split_{}".format(i))))
 
                     # The data is stored in numpy arrays, so it has to be converted to tensors.
-                    train_X = from_numpy(np.load(os.path.join(data_path, directory, "split_{}".format(i), "train_X.npy")))
-                    train_mask = from_numpy(np.load(os.path.join(data_path, directory, "split_{}".format(i), "train_mask.npy")))
-                    train_y = from_numpy(np.load(os.path.join(data_path, directory, "split_{}".format(i), "train_y.npy"))).float()
+                    train_X = from_numpy(np.load(os.path.join(data_path, directory, f"split_{i}", "train_X.npy")))
+                    train_mask = from_numpy(np.load(os.path.join(data_path, directory, f"split_{i}", "train_mask.npy")))
+                    train_y = from_numpy(np.load(os.path.join(data_path, directory, f"split_{i}", "train_y.npy"))).float()
 
                     assert train_X.shape[0] == train_mask.shape[0] == train_y.shape[0]
 
-                    dev_X = from_numpy(np.load(os.path.join(data_path, directory, "split_{}".format(i), "dev_X.npy")))
-                    dev_mask = from_numpy(np.load(os.path.join(data_path, directory, "split_{}".format(i), "dev_mask.npy")))
-                    dev_y = from_numpy(np.load(os.path.join(data_path, directory, "split_{}".format(i), "dev_y.npy"))).float()
+                    dev_X = from_numpy(np.load(os.path.join(data_path, directory, f"split_{i}", "dev_X.npy")))
+                    dev_mask = from_numpy(np.load(os.path.join(data_path, directory, f"split_{i}", "dev_mask.npy")))
+                    dev_y = from_numpy(np.load(os.path.join(data_path, directory, f"split_{i}", "dev_y.npy"))).float()
 
                     assert dev_X.shape[0] == dev_mask.shape[0] == dev_y.shape[0]
 
@@ -207,9 +225,9 @@ def load_data(data_path, lang, data_type):
 
                 elif data_type == "test":
                     print("Loading test data from directory {}...".format(os.path.join(data_path, directory, "split_{}".format(i))))
-                    test_X = from_numpy(np.load(os.path.join(data_path, directory, "split_{}".format(i), "test_X.npy")))
-                    test_mask = from_numpy(np.load(os.path.join(data_path, directory, "split_{}".format(i), "test_mask.npy")))
-                    test_y = from_numpy(np.load(os.path.join(data_path, directory, "split_{}".format(i), "test_y.npy"))).float()
+                    test_X = from_numpy(np.load(os.path.join(data_path, directory, f"split_{i}", "test_X.npy")))
+                    test_mask = from_numpy(np.load(os.path.join(data_path, directory, f"split_{i}", "test_mask.npy")))
+                    test_y = from_numpy(np.load(os.path.join(data_path, directory, f"split_{i}", "test_y.npy"))).float()
 
                     assert test_X.shape[0] == test_mask.shape[0] == test_y.shape[0]
 
