@@ -100,6 +100,7 @@ def objective(trial: Trial, tune_params, model, tokenizer, train_set, dev_set):
         per_device_eval_batch_size=tune_params["batch_size"],
         evaluation_strategy="epoch",
         save_strategy="epoch",
+        logging_strategy="epoch",
     )
     if tune_params["custom_loss"]:
         trainer = CustomTrainer(
