@@ -11,77 +11,6 @@ current_epoch = 0
 current_split = 0
 
 
-def objective(trial: Trial, tune_params, model, tokenizer, train_set, dev_set):
-    """
-    Objective function for the hyperparameter tuning.
-
-    :param trial: Trial object.
-    :param tune_params: Dictionary with the parameters for the tuning.
-    :param model: Model to be tuned.
-    :param tokenizer: Tokenizer for the model.
-    :param train_set: Training set.
-    :param dev_set: Evaluation set during the training.
-    :return: Metric for the current trial.
-    """
-    global language
-    global current_split
-
-    training_args = TrainingArguments(
-        output_dir=tune_params["output_dir"],
-        learning_rate=trial.suggest_float(
-            "learning_rate", low=1e-5, high=6e-5, step=1e-5),
-        max_grad_norm=tune_params["max_grad_norm"],
-        weight_decay=trial.suggest_categorical(
-            "weight_decay", choices=[0.0001, 0.001, 0.01, 0.1, 1.0]),
-        num_train_epochs=trial.suggest_int(
-            "num_train_epochs", low=30, high=100),
-        lr_scheduler_type="linear",
-        warmup_steps=len(train_set),
-        seed=tune_params["seed"],
-        save_total_limit=1,
-        no_cuda=tune_params["cuda_choice"],
-        metric_for_best_model=tune_params["eval_metric"],
-        optim="adamw_torch",
-        optim_args=trial.suggest_categorical(
-            "optim_args", choices=["correct_bias=True", "correct_bias=False"]),
-        per_device_train_batch_size=tune_params["batch_size"],
-        per_device_eval_batch_size=tune_params["batch_size"],
-    )
-    if tune_params["custom_loss"]:
-        trainer = CustomTrainer(
-            model=model,
-            tokenizer=tokenizer,
-            args=training_args,
-            train_dataset=train_set,
-            eval_dataset=dev_set,
-            data_collator=data_collator_tensordataset,
-            compute_metrics=compute_metrics
-        )
-
-        trainer.prepare_labels(args.data_path, language,
-                               current_split, args.device)
-
-        if tune_params["weighted_loss"]:
-            trainer.set_weighted_loss()
-        else:
-            trainer.set_focal_params(
-                alpha=trial.suggest_float("alpha", low=0.15, high=0.95, step=0.1),
-                gamma=trial.suggest_float("gamma", low=1, high=9, step=1)
-            )
-
-    trainer = Trainer(
-        model=model,
-        tokenizer=tokenizer,
-        args=training_args,
-        train_dataset=train_set,
-        eval_dataset=dev_set,
-        data_collator=data_collator_tensordataset,
-        compute_metrics=compute_metrics
-    )
-    result = trainer.train()
-    return result[tune_params["eval_metric"]]
-
-
 def get_metrics(y_true, predictions, threshold=0.5):
     """
     Return the metrics for the predictions.
@@ -132,6 +61,79 @@ def compute_metrics(p: EvalPrediction):
         p.predictions, tuple) else p.predictions
     result = get_metrics(p.label_ids, preds, args.threshold)
     return result
+
+
+def objective(trial: Trial, tune_params, model, tokenizer, train_set, dev_set):
+    """
+    Objective function for the hyperparameter tuning.
+
+    :param trial: Trial object.
+    :param tune_params: Dictionary with the parameters for the tuning.
+    :param model: Model to be tuned.
+    :param tokenizer: Tokenizer for the model.
+    :param train_set: Training set.
+    :param dev_set: Evaluation set during the training.
+    :return: Metric for the current trial.
+    """
+    global language
+    global current_split
+
+    training_args = TrainingArguments(
+        output_dir=tune_params["output_dir"],
+        learning_rate=trial.suggest_float(
+            "learning_rate", low=1e-5, high=6e-5, step=1e-5),
+        max_grad_norm=tune_params["max_grad_norm"],
+        weight_decay=trial.suggest_categorical(
+            "weight_decay", choices=[0.0001, 0.001, 0.01, 0.1, 1.0]),
+        num_train_epochs=trial.suggest_int(
+            "num_train_epochs", low=30, high=100),
+        lr_scheduler_type="linear",
+        warmup_steps=len(train_set),
+        seed=tune_params["seed"],
+        save_total_limit=1,
+        no_cuda=tune_params["cuda_choice"],
+        metric_for_best_model=tune_params["eval_metric"],
+        optim="adamw_torch",
+        optim_args=trial.suggest_categorical(
+            "optim_args", choices=["correct_bias=True", "correct_bias=False"]),
+        per_device_train_batch_size=tune_params["batch_size"],
+        per_device_eval_batch_size=tune_params["batch_size"],
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+    )
+    if tune_params["custom_loss"]:
+        trainer = CustomTrainer(
+            model=model,
+            tokenizer=tokenizer,
+            args=training_args,
+            train_dataset=train_set,
+            eval_dataset=dev_set,
+            data_collator=data_collator_tensordataset,
+            compute_metrics=compute_metrics
+        )
+
+        trainer.prepare_labels(args.data_path, language,
+                               current_split, args.device)
+
+        if tune_params["weighted_loss"]:
+            trainer.set_weighted_loss()
+        else:
+            trainer.set_focal_params(
+                alpha=trial.suggest_float("alpha", low=0.15, high=0.95, step=0.1),
+                gamma=trial.suggest_float("gamma", low=1, high=9, step=1)
+            )
+    else:
+        trainer = Trainer(
+            model=model,
+            tokenizer=tokenizer,
+            args=training_args,
+            train_dataset=train_set,
+            eval_dataset=dev_set,
+            data_collator=data_collator_tensordataset,
+            compute_metrics=compute_metrics
+        )
+    result = trainer.train()
+    return result[tune_params["eval_metric"]]
 
 
 def start_train():
@@ -247,7 +249,7 @@ def start_train():
                     direction=args.tune_direction,
                     sampler=samplers.TPESampler(seed=tune_params["seed"]),
                     storage=f"sqlite:///{path.join(tune_params['output_dir'], 'optimization.db')}",
-                    )
+                )
 
                 # Optimize the objective using 15 different trials
                 study.optimize(lambda trial: objective(
