@@ -2,7 +2,7 @@ import argparse
 import yaml
 from os import path, makedirs, listdir
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, EvalPrediction, TrainingArguments, set_seed
-from utils import sklearn_metrics, data_collator_tensordataset, load_data
+from utils import sklearn_metrics_full, data_collator_tensordataset, load_data
 import json
 
 language = ""
@@ -20,7 +20,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
     global current_model
     global language
 
-    metrics, class_report, conf_matrix = sklearn_metrics(
+    metrics, class_report, conf_matrix = sklearn_metrics_full(
         y_true,
         predictions,
         path.join(args.data_path, language),

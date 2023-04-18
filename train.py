@@ -2,7 +2,7 @@ import argparse
 from transformers import AutoModelForSequenceClassification, TrainingArguments, EvalPrediction, AutoTokenizer, set_seed, Trainer
 import yaml
 from os import path, makedirs
-from utils import sklearn_metrics, data_collator_tensordataset, load_data, CustomTrainer
+from utils import sklearn_metrics_single, sklearn_metrics_full, data_collator_tensordataset, load_data, CustomTrainer
 import json
 from optuna import Trial, samplers, create_study, visualization
 
@@ -24,13 +24,21 @@ def get_metrics(y_true, predictions, threshold=0.5):
     global language
     global current_split
 
-    metrics, class_report, _ = sklearn_metrics(
+    metrics, class_report, _ = sklearn_metrics_full(
         y_true,
         predictions,
         "",
         threshold,
         False,
         args.save_class_report,
+    ) if args.full_metrics else sklearn_metrics_single(
+        y_true,
+        predictions,
+        "",
+        threshold,
+        False,
+        args.save_class_report,
+        eval_metric=args.eval_metric,
     )
 
     if args.save_class_report:
@@ -285,7 +293,8 @@ def start_train():
                 for k, v in study.best_trial.hyperparameters.items():
                     if k != "alpha" and k != "gamma":
                         setattr(train_args, k, v)
-
+            else:
+                study = None
             # Create the trainer. It uses a custom data collator to convert the
             # dataset to a compatible dataset.
 
@@ -343,9 +352,13 @@ if __name__ == "__main__":
     parser.add_argument("--autotune", action="store_true", default=False, help="Automatically look for the best hyperparameters.")
     parser.add_argument("--tune_direction", type=str, default="maximize", choices=["maximize", "minimize"], help="Direction of the optimization.")
     parser.add_argument("--eval_metric", type=str, default="f1_micro", choices=[
-        'loss', 'f1_micro', 'f1_macro', 'f1_weighted', 'f1_samples', 'jaccard_micro', 'matthews_macro', 'roc_auc_micro',
-        'precision_micro', 'recall_micro', 'hamming', 'accuracy', 'ndcg_1', 'ndcg_3', 'ndcg_5', 'ndcg_10'],
+        'loss', 'f1_micro', 'f1_macro', 'f1_weighted', 'f1_samples', 'jaccard_micro', 'jaccard_macro', 'jaccard_weighted', 'jaccard_samples',
+        'matthews_macro', 'roc_auc_micro', 'roc_auc_macro', 'roc_auc_weighted', 'roc_auc_samples',
+        'precision_micro', 'precision_macro', 'precision_weighted', 'precision_samples',
+        'recall_micro', 'recall_macro', 'recall_weighted', 'recall_samples',
+        'hamming_loss', 'accuracy', 'ndcg_1', 'ndcg_3', 'ndcg_5', 'ndcg_10'],
         help="Evaluation metric to use for the optimization.")
+    parser.add_argument("--full_metrics", action="store_true", default=False, help="Compute all the metrics during the evaluation.")
     parser.add_argument("--trust_remote", action="store_true", default=False, help="Trust the remote code for the model.")
     parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models")
     parser.add_argument("--save_class_report", action="store_true", default=False, help="Save the classification report.")

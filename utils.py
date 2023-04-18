@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import TensorDataset
 from torchvision.ops import focal_loss
 from transformers import Trainer
-from torch import nn, Tensor
+from torch import nn, Tensor, nonzero, sort
 import pickle
 import json
     
@@ -108,16 +108,17 @@ class CustomTrainer(Trainer):
 
         return (loss, outputs) if return_outputs else loss
 
-def sklearn_metrics(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False):
+def sklearn_metrics_core(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False):
     """
-    Return the metrics and classification report for the predictions.
-    
+    Shared code for the sklearn metrics.
+
     :param y_true: True labels.
     :param predictions: Predictions.
-    :param threshold: Threshold for the predictions. Default: 0.5.
-    :param get_conf_matrix: If True, return the confusion matrix. Default: False.
-    :param get_class_report: If True, return the classification report. Default: False.
-    :return: A dictionary with the metrics and a classification report.
+    :param data_path: Path to the data.
+    :param threshold: Threshold to use for the predictions. Default: 0.5.
+    :param get_conf_matrix: Whether to get the confusion matrix. Default: False.
+    :param get_class_report: Whether to get the classification report. Default: False.
+    :return: Initialized variables.
     """
     # Convert the predictions to binary
     probs = sigmoid(Tensor(predictions))
@@ -144,32 +145,110 @@ def sklearn_metrics(y_true, predictions, data_path, threshold=0.5, get_conf_matr
     else:
         class_report = None
 
+    to_return = {}
+
+    return probs, y_pred, conf_matrix, class_report, to_return
+
+def sklearn_metrics_full(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False):
+    """
+    Return all the metrics and the classification report for the predictions.
+    
+    :param y_true: True labels.
+    :param predictions: Predictions.
+    :param threshold: Threshold for the predictions. Default: 0.5.
+    :param get_conf_matrix: If True, return the confusion matrix. Default: False.
+    :param get_class_report: If True, return the classification report. Default: False.
+    :return: A dictionary with the metrics and a classification report.
+    """
+    probs, y_pred, conf_matrix, class_report, to_return = sklearn_metrics_core(y_true, predictions, data_path, threshold, get_conf_matrix, get_class_report)
+
+    averaging=["micro", "macro", "weighted", "samples"]
+
+    to_return["accuracy"] = accuracy_score(y_true, y_pred)
+    
+    true_labels = [nonzero(Tensor(labels), as_tuple=True)[0] for labels in y_true]
+    pred_labels = sort(probs, descending=True)[1][:, :6]
+    pk_scores = [np.intersect1d(true, pred).shape[0] / pred.shape[0] + 1e-10 for true, pred in
+                    zip(true_labels, pred_labels)]
+    rk_scores = [np.intersect1d(true, pred).shape[0] / true.shape[0] + 1e-10 for true, pred in
+                    zip(true_labels, pred_labels)]
+    f1k_scores = [2 * recall * precision / (recall + precision) for recall, precision in zip(pk_scores, rk_scores)]
+    to_return["f1_pyeurovoc"] = sum(f1k_scores) / len(f1k_scores)
+    for avg in averaging:
+        to_return[f"f1_{avg}"] = f1_score(y_true, y_pred, average=avg, zero_division=0)
+    
+    for avg in averaging:
+        to_return[f"precision_{avg}"] = precision_score(y_true, y_pred, average=avg, zero_division=0)
+    
+    for avg in averaging:
+        to_return[f"recall_{avg}"] = recall_score(y_true, y_pred, average=avg, zero_division=0)
+    
+    to_return["hamming_loss"] = hamming_loss(y_true, y_pred)
+    
+    for avg in averaging:
+        to_return[f"jaccard_{avg}"] = jaccard_score(y_true, y_pred, average=avg, zero_division=0)
+    
     references = np.array(y_true)
     predictions = np.array(y_pred)
-
     matthews_corr = [
         matthews_corrcoef(predictions[:, i], references[:, i], sample_weight=None)
         for i in range(references.shape[1])
     ]
+    to_return["matthews_macro"] = np.mean(matthews_corr)
     
-    # Return all the metrics
-    return {
-        'f1_micro': f1_score(y_true=y_true, y_pred=y_pred, average='micro', zero_division=0),
-        'f1_macro': f1_score(y_true=y_true, y_pred=y_pred, average='macro', zero_division=0),
-        'f1_weighted': f1_score(y_true=y_true, y_pred=y_pred, average='weighted', zero_division=0),
-        'f1_samples': f1_score(y_true=y_true, y_pred=y_pred, average='samples', zero_division=0),
-        'jaccard_micro': jaccard_score(y_true, y_pred, average = 'micro', zero_division=0),
-        'matthews_macro': np.mean(matthews_corr),
-        'roc_auc_micro': roc_auc_score(y_true, y_pred, average = 'micro'),
-        'precision_micro': precision_score(y_true, y_pred, average = 'micro', zero_division=0),
-        'recall_micro': recall_score(y_true, y_pred, average = 'micro', zero_division=0),
-        'hamming': hamming_loss(y_true, y_pred),
-        'accuracy': accuracy_score(y_true, y_pred),
-        'ndcg_1': ndcg_score(y_true, y_pred, k=1),
-        'ndcg_3': ndcg_score(y_true, y_pred, k=3),
-        'ndcg_5': ndcg_score(y_true, y_pred, k=5),
-        'ndcg_10': ndcg_score(y_true, y_pred, k=10),
-    }, class_report, conf_matrix
+    for avg in averaging:
+        try:
+            to_return[f"roc_auc_{avg}"] = roc_auc_score(y_true, y_pred, average=avg)
+        except ValueError:
+            to_return[f"roc_auc_{avg}"] = 0.0
+    
+    for k in [1, 3, 5, 10]:
+        to_return[f"ndcg_{k}"] = ndcg_score(y_true, y_pred, k=k)
+
+    return to_return, class_report, conf_matrix
+
+
+def sklearn_metrics_single(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False,
+    eval_metric=''):
+    """
+    Return the specified metric and the classification report for the predictions during the training.
+    
+    :param y_true: True labels.
+    :param predictions: Predictions.
+    :param threshold: Threshold for the predictions. Default: 0.5.
+    :param get_conf_matrix: If True, return the confusion matrix. Default: False.
+    :param get_class_report: If True, return the classification report. Default: False.
+    :param eval_metric: The metric to use for the evaluation. Default: ''.
+    :return: A dictionary with the metric and a classification report.
+    """
+    _, y_pred, conf_matrix, class_report, to_return = sklearn_metrics_core(y_true, predictions, data_path, threshold, get_conf_matrix, get_class_report)
+
+    if "accuracy" in eval_metric:
+        to_return["accuracy"] = accuracy_score(y_true, y_pred)
+    elif "f1" in eval_metric:
+        to_return[eval_metric] = f1_score(y_true, y_pred, average=eval_metric.split("_")[1], zero_division=0)
+    elif "precision" in eval_metric:
+        to_return[eval_metric] = precision_score(y_true, y_pred, average=eval_metric.split("_")[1], zero_division=0)
+    elif "recall" in eval_metric:
+        to_return[eval_metric] = recall_score(y_true, y_pred, average=eval_metric.split("_")[1], zero_division=0)
+    elif "hamming" in eval_metric:
+        to_return["hamming_loss"] = hamming_loss(y_true, y_pred)
+    elif "jaccard" in eval_metric:
+        to_return[eval_metric] = jaccard_score(y_true, y_pred, average=eval_metric.split("_")[1], zero_division=0)
+    elif "matthews" in eval_metric:
+        references = np.array(y_true)
+        predictions = np.array(y_pred)
+        matthews_corr = [
+            matthews_corrcoef(predictions[:, i], references[:, i], sample_weight=None)
+            for i in range(references.shape[1])
+        ]
+        to_return["matthews_macro"] = np.mean(matthews_corr)
+    elif "roc_auc" in eval_metric:
+        to_return[eval_metric] = roc_auc_score(y_true, y_pred, average=eval_metric.split("_")[1])
+    elif "ndcg" in eval_metric:
+        to_return[eval_metric] = ndcg_score(y_true, y_pred, k=eval_metric.split("_")[1])
+
+    return to_return, class_report, conf_matrix
 
 def data_collator_tensordataset(features):
     """
