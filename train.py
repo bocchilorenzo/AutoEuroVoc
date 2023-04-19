@@ -353,7 +353,8 @@ if __name__ == "__main__":
     parser.add_argument("--tune_direction", type=str, default="maximize", choices=["maximize", "minimize"], help="Direction of the optimization.")
     parser.add_argument("--eval_metric", type=str, default="f1_micro", choices=[
         'loss', 'f1_micro', 'f1_macro', 'f1_weighted', 'f1_samples', 'jaccard_micro', 'jaccard_macro', 'jaccard_weighted', 'jaccard_samples',
-        'matthews_macro', 'roc_auc_micro', 'roc_auc_macro', 'roc_auc_weighted', 'roc_auc_samples',
+        'matthews_macro', 'matthews_micro',
+        'roc_auc_micro', 'roc_auc_macro', 'roc_auc_weighted', 'roc_auc_samples',
         'precision_micro', 'precision_macro', 'precision_weighted', 'precision_samples',
         'recall_micro', 'recall_macro', 'recall_weighted', 'recall_samples',
         'hamming_loss', 'accuracy', 'ndcg_1', 'ndcg_3', 'ndcg_5', 'ndcg_10'],

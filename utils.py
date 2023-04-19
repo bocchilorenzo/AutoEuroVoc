@@ -190,11 +190,11 @@ def sklearn_metrics_full(y_true, predictions, data_path, threshold=0.5, get_conf
     
     references = np.array(y_true)
     predictions = np.array(y_pred)
-    matthews_corr = [
-        matthews_corrcoef(predictions[:, i], references[:, i], sample_weight=None)
+    to_return["matthews_macro"] = np.mean([
+        matthews_corrcoef(y_true=references[:, i], y_pred=predictions[:, i], sample_weight=None)
         for i in range(references.shape[1])
-    ]
-    to_return["matthews_macro"] = np.mean(matthews_corr)
+    ])
+    to_return["matthews_micro"] = matthews_corrcoef(y_true=references.ravel(), y_pred=predictions.ravel())
     
     for avg in averaging:
         try:
