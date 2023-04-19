@@ -238,11 +238,13 @@ def sklearn_metrics_single(y_true, predictions, data_path, threshold=0.5, get_co
     elif "matthews" in eval_metric:
         references = np.array(y_true)
         predictions = np.array(y_pred)
-        matthews_corr = [
-            matthews_corrcoef(predictions[:, i], references[:, i], sample_weight=None)
-            for i in range(references.shape[1])
-        ]
-        to_return["matthews_macro"] = np.mean(matthews_corr)
+        if eval_metric == "matthews_micro":
+            to_return["matthews_micro"] = matthews_corrcoef(y_true=references.ravel(), y_pred=predictions.ravel())
+        elif eval_metric == "matthews_macro":
+            to_return["matthews_macro"] = np.mean([
+                matthews_corrcoef(y_true=references[:, i], y_pred=predictions[:, i], sample_weight=None)
+                for i in range(references.shape[1])
+            ])
     elif "roc_auc" in eval_metric:
         to_return[eval_metric] = roc_auc_score(y_true, y_pred, average=eval_metric.split("_")[1])
     elif "ndcg" in eval_metric:
