@@ -40,13 +40,13 @@ def save_splits(X, masks, y, directory, mlb):
     """
     global seeds
     for i, seed in enumerate(seeds):
-        stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[0.2, 0.8], random_state=int(seed))
+        stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[0.2, 0.8], random_state=int(seed), shuffle=True)
         train_idx, aux_idx = next(stratifier.split(X, y))
         train_X, train_mask, train_y = X[train_idx, :], masks[train_idx, :], y[train_idx, :]
 
         assert train_X.shape[0] == train_mask.shape[0] == train_y.shape[0]
 
-        stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[0.5, 0.5], random_state=int(seed))
+        stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[0.5, 0.5], random_state=int(seed), shuffle=True)
         dev_idx, test_idx = next(stratifier.split(X[aux_idx, :], y[aux_idx, :]))
         dev_X, dev_mask, dev_y = X[dev_idx, :], masks[dev_idx, :], y[dev_idx, :]
         test_X, test_mask, test_y = X[test_idx, :], masks[test_idx, :], y[test_idx, :]
