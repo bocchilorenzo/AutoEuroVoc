@@ -201,37 +201,17 @@ def process_datasets(data_path, directory, tokenizer_name):
     # If no years are specified, process all the downloaded years depending on the arguments.
     if args.years == "all":
         if not args.summarized:
-            args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if "summarized" not in year and os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith(".json.gz")])
-        elif args.summarized and not args.bigrams and not args.tfidf:
-            args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith("_summarized.json.gz")])
-        elif args.summarized and args.bigrams and not args.tfidf:
-            args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith("_summarized_bigram.json.gz")])
-        elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l1":
-            args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith("_tfidf_l1.json.gz")])
-        elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l2":
-            args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith("_tfidf_l2.json.gz")])
-        elif args.summarized and args.tfidf and args.bigrams and args.norm == "l1":
-            args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith("_tfidf_l1_bigram.json.gz")])
-        elif args.summarized and args.tfidf and args.bigrams and args.norm == "l2":
-            args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith("_tfidf_l2_bigram.json.gz")])
+            args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if "sum" not in year and os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith(".json.gz")])
+        else:
+            args.years = ",".join([year.split(".")[0] for year in os.listdir(os.path.join(data_path, directory)) if os.path.isfile(os.path.join(data_path, directory, year)) and year.endswith(".json.gz") and args.summ_mode in year])
     else:
         if "," not in args.years:
             args.years += "," + args.years
         
         if not args.summarized:
             args.years = ",".join([str(year) for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
-        elif args.summarized and not args.bigrams and not args.tfidf:
-            args.years = ",".join([str(year) + "_summarized" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
-        elif args.summarized and args.bigrams and not args.tfidf:
-            args.years = ",".join([str(year) + "_summarized_bigram" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
-        elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l1":
-            args.years = ",".join([str(year) + "_tfidf_l1" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
-        elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l2":
-            args.years = ",".join([str(year) + "_tfidf_l2" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
-        elif args.summarized and args.tfidf and args.bigrams and args.norm == "l1":
-            args.years = ",".join([str(year) + "_tfidf_l1_bigram" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
-        elif args.summarized and args.tfidf and args.bigrams and args.norm == "l2":
-            args.years = ",".join([str(year) + "_tfidf_l2_bigram" for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
+        else:
+            args.years = ",".join([str(year) + "_sum_" + args.summ_mode for year in range(int(args.years.split(",")[0]), int(args.years.split(",")[1]) + 1)])
     
     print(f"Years to process: '{args.years}'\n")
 
@@ -241,18 +221,8 @@ def process_datasets(data_path, directory, tokenizer_name):
         list_inputs, list_masks, list_labels = process_year(os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer, max_len=args.max_length)
     else:
         for year in args.years.split(","):
-            if args.summarized and not args.bigrams and not args.tfidf:
+            if args.summarized:
                 print(f"Processing summarized year: '{year}'...")
-            elif args.summarized and args.bigrams and not args.tfidf:
-                print(f"Processing summarized (with bigrams) year: '{year}'...")
-            elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l1":
-                print(f"Processing summarized (with tf-idf and l1 norm) year: '{year}'...")
-            elif args.summarized and args.tfidf and not args.bigrams and args.norm == "l2":
-                print(f"Processing summarized (with tf-idf and l2 norm) year: '{year}'...")
-            elif args.summarized and args.tfidf and args.bigrams and args.norm == "l1":
-                print(f"Processing summarized (with tf-idf, bigrams and l1 norm) year: '{year}'...")
-            elif args.summarized and args.tfidf and args.bigrams and args.norm == "l2":
-                print(f"Processing summarized (with tf-idf, bigrams and l2 norm) year: '{year}'...")
             else:
                 print(f"Processing year: '{year}'...")
             year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, max_len=args.max_length)
@@ -314,9 +284,7 @@ if __name__ == "__main__":
     parser.add_argument("--add_mt_do", action="store_true", default=False, help="Add the MicroThesaurus and Domain labels to be predicted.")
     parser.add_argument("--senato", action="store_true", default=False, help="Process the Senato data instead of the EUR-Lex one.")
     parser.add_argument("--summarized", action="store_true", default=False, help="Process the summarized data instead of the full text one.")
-    parser.add_argument("--tfidf", action="store_true", default=False, help="Use datasets summarized with TF-IDF instead of the centroid and word embedding method. Only used if --summarized is also used.")
-    parser.add_argument("--norm", default="l2", choices=["l1", "l2"], help="Normalization method to use for the TF-IDF vectors. Only used if --summarized and --tfidf are also used.")
-    parser.add_argument("--bigrams", action="store_true", default=False, help="Use datasets summarized with bigrams instead of single words. Only used if --summarized is also used.")
+    parser.add_argument("--summ_mode", type=str, default="centroid_full", choices=["centroid_full", "centroid_compressed", "centroid_compressed_bigram", "tfidf_l1", "tfidf_l2"], help="Summarization method to use. Only used if --summarized is also used.")
     args = parser.parse_args()
 
     preprocess_data()
