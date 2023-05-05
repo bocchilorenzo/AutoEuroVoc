@@ -109,6 +109,7 @@ def objective(trial: Trial, tune_params, model, tokenizer, train_set, dev_set):
         evaluation_strategy="epoch",
         save_strategy="epoch",
         logging_strategy="epoch",
+        report_to="all",
     )
     if tune_params["custom_loss"]:
         trainer = CustomTrainer(
@@ -142,6 +143,7 @@ def objective(trial: Trial, tune_params, model, tokenizer, train_set, dev_set):
             compute_metrics=compute_metrics
         )
     result = trainer.train()
+    # This return does not work
     return result[tune_params["eval_metric"]]
 
 
@@ -234,6 +236,7 @@ def start_train():
                 per_device_train_batch_size=args.batch_size,
                 per_device_eval_batch_size=args.batch_size,
                 weight_decay=0.01,
+                report_to="all",
             )
 
             if args.autotune:

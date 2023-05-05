@@ -128,7 +128,8 @@ def start_evaluate():
                     path.join(last_checkpoint, "evaluation"),
                     per_device_eval_batch_size=args.batch_size,
                     seed = int(seeds[split_idx]),
-                    no_cuda = no_cuda
+                    no_cuda = no_cuda,
+                    report_to="all",
                 ),
                 model=model,
                 tokenizer=tokenizer,
