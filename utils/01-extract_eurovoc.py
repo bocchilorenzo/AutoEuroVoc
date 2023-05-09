@@ -8,11 +8,14 @@ def extract_documents(args):
     years = [name for name in listdir(path_docs) if path.isfile(path.join(path_docs, name)) and name.endswith(".json.gz")]
     final_path = args.output_path
 
+    print(f"Working on data from {path_docs}")
+    
     for year in years:
         with gzip.open(path.join(path_docs, year), "rt", encoding="utf-8") as f:
             data = json.load(f)
             to_del = set()
             for doc in data:
+                # For each document in the file, only keep those with at least one Eurovoc classifier and without an empty text
                 if len(data[doc]["eurovoc_classifiers"]) == 0 or data[doc]["full_text"] == "":
                     to_del.add(doc)
             for doc in to_del:

@@ -24,6 +24,8 @@ def summarize_data(args):
 
     years = [str(i) for i in range(int(args.years.split("-")[0]), int(args.years.split("-")[1]) + 1)]
 
+    print(f"Working on data from {path_initial}. Language: {args.summ_lang}. Years to process: {years}.")
+
     for file in years:
         try:
             with gzip.open(path.join(path_initial, file+".json.gz"), "rt", encoding="utf-8") as fp:
