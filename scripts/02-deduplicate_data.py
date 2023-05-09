@@ -36,7 +36,7 @@ def deduplicate_file(args):
     makedirs(new_path, exist_ok=True)
 
     np.random.seed(42)
-    model = SentenceTransformer(models[args.lang])
+    model = SentenceTransformer(models[args.lang], device=args.device)
 
     print(f"Working on data from {path_initial}. Language: {args.lang}")
 
@@ -69,6 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", type=str, default="./deduped", help="Path to the folder where the deduplicated files will be saved")
     parser.add_argument("--lang", type=str, default="it", choices=["bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr", "hu", "it", "lt", "lv", "mt", "nl", "pl", "pt", "ro", "sk", "sl", "sv"], help="Language of the documents")
     parser.add_argument("--batch_size", type=int, default=6, help="Batch size for the paraphrase mining")
+    parser.add_argument("--device", type=str, default="cpu", choices=["cuda", "cpu"], help="Device to use for the paraphrase mining")
     parser.add_argument("--threshold", type=float, default=0.9, help="Similarity threshold for the paraphrase mining")
     parser.add_argument("--save_deleted", action="store_true", default=False, help="Whether to save the ids of the deleted documents in a JSON file")
 

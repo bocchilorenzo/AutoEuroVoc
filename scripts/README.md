@@ -13,6 +13,7 @@ To deduplicate the documents, run 02-deduplicate_data.py. This script will load 
 - output_path: the path to the folder where the deduplicated documents will be saved
 - threshold: the threshold for the cosine similarity. Documents with a similarity higher than this will be considered duplicates. Default is 0.9.
 - batch_size: the batch size for the sentence-transformers model. Default is 6.
+- device: the device to use for the sentence-transformers model. Default is "cpu".
 - save_deleted: whether to save the deleted documents in a JSON file. The format is:
 
 ```json
@@ -42,3 +43,29 @@ To summarize the documents, run 04-summarize_dataset.py. This script will load t
 - tokenizer: the tokenizer to use for the summarizer. It can be "nltk" or "udpipe". Default is "udpipe".
 - model_type: the type of the summarizer model. It can be "fasttext" or "word2vec". Default is "fasttext".
 - years: the range of years to summarize (extremes included). Default is "2010-2022".
+
+The summarized documents will be formatted in a way that allows the end user to choose how much of the text they want to keep. The format is:
+
+```json
+"document_id": {
+    "title": "document_title",
+    "link": "document_link",
+    "eurovoc_classifiers": [
+        "classifier_1",
+        "classifier_2",
+        ...
+    ],
+    "full_text": [
+        "sentence_1",
+        "sentence_2",
+        ...
+    ],
+    "importance": [
+        0.7326374,
+        0.1277499,
+        ...
+    ]
+}
+```
+
+This way, the user can either keep the top N most significant sentences or add them up to a specified word length.
