@@ -55,9 +55,11 @@ def save_splits(X, masks, y, directory, mlb):
         assert dev_X.shape[0] == dev_mask.shape[0] == dev_y.shape[0]
         assert test_X.shape[0] == test_mask.shape[0] == test_y.shape[0]
 
-        print("{} - Splitted the documents in - train: {}, dev: {}, test: {}".format(i, train_X.shape[0],
-                                                                                     dev_X.shape[0],
-                                                                                     test_X.shape[0]))
+        to_print = f"{i} - Splitted the documents in - train: {train_X.shape[0]}, dev: {dev_X.shape[0]}, test: {test_X.shape[0]}"
+        print(to_print)
+
+        with open(os.path.join(args.data_path, directory, "stats.txt"), "a") as f:
+            f.write(to_print + "\n")
 
         if not os.path.exists(os.path.join(args.data_path, directory, f"split_{i}")):
             os.makedirs(os.path.join(args.data_path, directory, f"split_{i}"))
@@ -179,10 +181,12 @@ def process_year(path, tokenizer, max_len=512):
             list_labels.append(labels)
             list_masks.append(ones_like(inputs_ids))
 
-    print("Dataset stats: - total documents: {}, big documents: {}, ratio: {:.4f}%".format(document_ct, big_document_ct, big_document_ct / document_ct * 100))
-    print("               - total tokens: {}, unk tokens: {}, ratio: {:.4f}%".format(tokens_ct, unk_ct, unk_ct / tokens_ct * 100))
+    to_print = f"Dataset stats: - total documents: {document_ct}, big documents: {big_document_ct}, ratio: {big_document_ct / document_ct * 100:.4f}%"
+    to_print += f"\n               - total tokens: {tokens_ct}, unk tokens: {unk_ct}, ratio: {unk_ct / tokens_ct * 100:.4f}%"
 
-    return list_inputs, list_masks, list_labels
+    print(to_print)
+
+    return list_inputs, list_masks, list_labels, to_print
 
 def process_datasets(data_path, directory, tokenizer_name):
     """
@@ -197,6 +201,7 @@ def process_datasets(data_path, directory, tokenizer_name):
     list_inputs = []
     list_masks = []
     list_labels = []
+    list_stats = []
 
     # If no years are specified, process all the downloaded years depending on the arguments.
     if args.years == "all":
@@ -218,20 +223,21 @@ def process_datasets(data_path, directory, tokenizer_name):
     # If the dataset is the Senato one, there is only one file to process.
     if directory == "senato":
         print("Processing Senato dataset...")
-        list_inputs, list_masks, list_labels = process_year(os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer, max_len=args.max_length)
+        list_inputs, list_masks, list_labels, year_stats = process_year(os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer, max_len=args.max_length)
     else:
         for year in args.years.split(","):
             if args.summarized:
                 print(f"Processing summarized year: '{year}'...")
             else:
                 print(f"Processing year: '{year}'...")
-            year_inputs, year_masks, year_labels = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, max_len=args.max_length)
+            year_inputs, year_masks, year_labels, year_stats = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, max_len=args.max_length)
             
             list_inputs += year_inputs
             list_masks += year_masks
             list_labels += year_labels
+            list_stats.append(year_stats)
 
-    assert len(list_inputs) == len(list_masks) == len(list_labels)
+    assert len(list_inputs) == len(list_masks) == len(list_labels) == len(list_stats)
 
     mlb = MultiLabelBinarizer()
     y = mlb.fit_transform(list_labels)
@@ -241,6 +247,9 @@ def process_datasets(data_path, directory, tokenizer_name):
 
     with open(os.path.join(args.data_path, directory, "mlb_encoder.pickle"), "wb") as pickle_fp:
         pickle.dump(mlb, pickle_fp, protocol=pickle.HIGHEST_PROTOCOL)
+    
+    with open(os.path.join(args.data_path, directory, "stats.txt"), "w") as stats_fp:
+        stats_fp.write("\n\n".join(list_stats))
 
     save_splits(X, masks, y, directory, mlb)
 

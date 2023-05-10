@@ -1,12 +1,12 @@
 This folder contains various utilities to recreate the datasets to use with the model. Following is an explanation on how to use them.
 
-## 0. Downloading the data
+## 00. Downloading the data
 This is done using the scraper found at https://github.com/bocchilorenzo/scrapelex. Follow the readme there to download the data.
 
-## 1. Extract the documents with eurovoc classifiers
+## 01. Extract the documents with eurovoc classifiers
 Put the downloaded data together in a folder and run the script 01-extract_eurovoc.py. This will create a gzipped json file for each original file, but only containing the documents that were classified and which contain text. The only arguments required are "data_path", which points to the folder containing the downloaded data, and "output_path", which points to the folder where the extracted documents will be saved.
 
-## 2. Deduplicate the documents
+## 02. Deduplicate the documents
 To deduplicate the documents, run 02-deduplicate_data.py. This script will load the data year by year and remove documents that are identical or almost identical to each other. It uses the library "sentence-transformers" to compute the cosine similarity between the documents, via the "paraphrase_mining" method. The arguments are:
 
 - data_path: the path to the folder containing the extracted documents
@@ -24,7 +24,7 @@ To deduplicate the documents, run 02-deduplicate_data.py. This script will load 
 
 By default, it's False.
 
-## 3. Download the summarizer
+## 03. Download the summarizer
 The summarizer used is contained in a different repository, namely https://github.com/bocchilorenzo/text-summarizer. Running the script 03-download_summarizer.py will download the summarizer and save it in the folder "text_summarizer". Then, it will create an __init__.py file in order to be able to import it as a module and it will download the udpipe models. Finally, it will also install the requirements for the summarizer. The user still has to do two things, namely:
 
 - download the fastText, compressed fastText or word2vec model to use with the summarizer
@@ -32,7 +32,7 @@ The summarizer used is contained in a different repository, namely https://githu
 
 More instructions on how to do this can be found in the readme of the summarizer repository.
 
-## 4. Summarize the documents
+## 04. Summarize the documents
 To summarize the documents, run 04-summarize_dataset.py. This script will load the data year by year and summarize the documents using the summarizer downloaded in the previous step. The arguments are:
 
 - data_path: the path to the folder containing the deduplicated documents
