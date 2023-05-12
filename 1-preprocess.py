@@ -202,6 +202,7 @@ def process_datasets(data_path, directory, tokenizer_name):
     list_masks = []
     list_labels = []
     list_stats = []
+    list_years = []
 
     # If no years are specified, process all the downloaded years depending on the arguments.
     if args.years == "all":
@@ -236,8 +237,9 @@ def process_datasets(data_path, directory, tokenizer_name):
             list_masks += year_masks
             list_labels += year_labels
             list_stats.append(year_stats)
+            list_years.append(year)
 
-    assert len(list_inputs) == len(list_masks) == len(list_labels) == len(list_stats)
+    assert len(list_inputs) == len(list_masks) == len(list_labels)
 
     mlb = MultiLabelBinarizer()
     y = mlb.fit_transform(list_labels)
@@ -249,7 +251,8 @@ def process_datasets(data_path, directory, tokenizer_name):
         pickle.dump(mlb, pickle_fp, protocol=pickle.HIGHEST_PROTOCOL)
     
     with open(os.path.join(args.data_path, directory, "stats.txt"), "w") as stats_fp:
-        stats_fp.write("\n\n".join(list_stats))
+        for year, year_stats in zip(list_years, list_stats):
+            stats_fp.write(f"Year: {year}\n{year_stats}\n\n")
 
     save_splits(X, masks, y, directory, mlb)
 
