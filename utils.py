@@ -15,7 +15,6 @@ class CustomTrainer(Trainer):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mlb_encoder = None
         self.custom_weights = None
         self.use_focal_loss = True
         self.focal_alpha = 0.25
@@ -30,10 +29,6 @@ class CustomTrainer(Trainer):
         :param split: Split of the data.
         :param device: Device to use.
         """
-        # Load the MultiLabelBinarizer
-        with open(os.path.join(data_path, language, "mlb_encoder.pickle"), "rb") as mlb_encoder_fp:
-            self.mlb_encoder = pickle.load(mlb_encoder_fp)
-        
         # Load the weights
         with open(os.path.join(data_path, language, f"split_{split}", "train_labs_count.json"), "r") as weights_fp:
             data = json.load(weights_fp)

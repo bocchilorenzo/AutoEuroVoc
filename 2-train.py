@@ -202,10 +202,16 @@ def start_train():
 
             tokenizer = AutoTokenizer.from_pretrained(config[lang])
 
+            with open(path.join(args.data_path, language, f"split_{split_idx}", "train_labs_count.json"), "r") as weights_fp:
+                data = json.load(weights_fp)
+                labels = list(data["labels"].keys())
+
             model = AutoModelForSequenceClassification.from_pretrained(
                 config[lang],
                 problem_type="multi_label_classification",
                 num_labels=num_classes,
+                id2label={id_label:label for id_label, label in enumerate(labels)},
+                label2id={label:id_label for id_label, label in enumerate(labels)},
                 trust_remote_code=args.trust_remote,
             )
 
