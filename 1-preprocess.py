@@ -128,33 +128,36 @@ def process_year(path, tokenizer, max_len=512):
             else:
                 labels = data[doc]["eurovoc_classifiers"] if "eurovoc_classifiers" in data[doc] else data[doc]["eurovoc"]
 
-            if args.add_title:
-                text = data[doc]["title"] + " "
-            
-            if args.summarized:
-                full_text = data[doc]["full_text"]
-                phrase_importance = []
-                i = 0
-
-                for imp in data[doc]["importance"]:
-                    if not math.isnan(imp):
-                        phrase_importance.append((i, imp))
-                    i += 1
-                
-                phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
-
-                # First, we get the most important phrases until the maximum length is reached.
-                if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > max_len:
-                    backup = deepcopy(phrase_importance)
-                    while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > max_len:
-                        phrase_importance = phrase_importance[:-1]
-                    phrase_importance.append(backup[len(phrase_importance)])
-
-                # Then, we sort the phrases by their position in the document.
-                phrase_importance = sorted(phrase_importance, key=lambda x: x[0])
-                text += " ".join([full_text[phrase[0]] for phrase in phrase_importance])
+            if args.title_only:
+                text = data[doc]["title"]
             else:
-                text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
+                if args.add_title:
+                    text = data[doc]["title"] + " "
+                
+                if args.summarized:
+                    full_text = data[doc]["full_text"]
+                    phrase_importance = []
+                    i = 0
+
+                    for imp in data[doc]["importance"]:
+                        if not math.isnan(imp):
+                            phrase_importance.append((i, imp))
+                        i += 1
+                    
+                    phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
+
+                    # First, we get the most important phrases until the maximum length is reached.
+                    if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > max_len:
+                        backup = deepcopy(phrase_importance)
+                        while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > max_len:
+                            phrase_importance = phrase_importance[:-1]
+                        phrase_importance.append(backup[len(phrase_importance)])
+
+                    # Then, we sort the phrases by their position in the document.
+                    phrase_importance = sorted(phrase_importance, key=lambda x: x[0])
+                    text += " ".join([full_text[phrase[0]] for phrase in phrase_importance])
+                else:
+                    text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
             
             text = re.sub(r'\r', '', text)
             
@@ -293,6 +296,7 @@ if __name__ == "__main__":
     parser.add_argument("--langs", type=str, default="it", help="Languages to be processed, separated by a comme (e.g. en,it). Write 'all' to process all the languages.")
     parser.add_argument("--max_length", type=int, default=512, help="Maximum number of words of the text to be processed.")
     parser.add_argument("--add_title", action="store_true", default=False, help="Add the title to the text.")
+    parser.add_argument("--title_only", action="store_true", default=False, help="Use only the title as input.")
     parser.add_argument("--add_mt_do", action="store_true", default=False, help="Add the MicroThesaurus and Domain labels to be predicted.")
     parser.add_argument("--senato", action="store_true", default=False, help="Process the Senato data instead of the EUR-Lex one.")
     parser.add_argument("--summarized", action="store_true", default=False, help="Process the summarized data instead of the full text one.")
