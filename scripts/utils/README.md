@@ -18,3 +18,8 @@ When you forget to write down the length of the processed datasets, you can use 
 Useful script that automatically calculates the significance of the difference between scores of two models. It calculates both for one tailed and two tailed tests at 0.1, 0.05, 0.01 and 0.001 alpha levels. The script is 02-t_test.py and it takes the following arguments:
 - best: list of comma separated values of the supposed best scores
 - worst: list of comma separated values of the other scores
+
+## 03. Update model labels
+This script updates the labels of the model. It is particularly useful when you want to change the labels of the model to the ones of the dataset (it should not be necessary if you train the model with the script in this repository). The script is 03-update_model_labels.py and it takes the following arguments:
+- model_path: the path to the model
+- labels: the path to the labels' JSON file
