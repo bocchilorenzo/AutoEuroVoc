@@ -4,10 +4,19 @@ This folder contains various utilities to recreate the datasets to use with the 
 This is done using the scraper found at https://github.com/bocchilorenzo/scrapelex. Follow the readme there to download the data.
 
 ## 01. Extract the documents with eurovoc classifiers
-Put the downloaded data together in a folder and run the script 01-extract_eurovoc.py. This will create a gzipped json file for each original file, but only containing the documents that were classified and which contain text. The only arguments required are "data_path", which points to the folder containing the downloaded data, and "output_path", which points to the folder where the extracted documents will be saved.
+This is the only necessary step that needs to be done in order to use the data with the classifier. To do this, put the downloaded data together in a folder and run the script 01-extract_eurovoc.py. This will create a gzipped json file for each original file, but only containing the documents that were classified and which contain text. The only arguments required are "data_path", which points to the folder containing the downloaded data, and "output_path", which points to the folder where the extracted documents will be saved.
 
-## 02. Deduplicate the documents
-To deduplicate the documents, run 02-deduplicate_data.py. This script will load the data year by year and remove documents that are identical or almost identical to each other. It uses the library "sentence-transformers" to compute the cosine similarity between the documents, via the "paraphrase_mining" method. The arguments are:
+## 02. Remove labels associated with less than a specified amount of documents
+Using the extracted documents, it's possible to remove the labels that are associated with less than a specified amount of documents. This is done by running the script 02-remove_few_labels.py. The arguments are:
+
+- data_path: the path to the folder containing the extracted documents
+- years: the years to consider, comma separated. Default is "all", and it will process all the files it finds in the folder. It's important to use the correct years, as the script will base the removal on the bulk of the data, so if the years are wrong, it could remove labels that shouldn't be removed.
+- threshold: the threshold for the number of documents associated with a label. Labels with less documents than this will be removed. Default is 100.
+
+Any documents that end up having no labels get removed and reported to the user in the console.
+
+## 03. Deduplicate the documents
+To deduplicate the documents, run 02-deduplicate_data.py. This script will load the data year by year and remove documents that are identical or almost identical to each other. It uses the library "sentence-transformers" to compute the cosine similarity between the documents, via the "paraphrase_mining" method. The main downside is that the max input length for all the languages aside for English is 128, while for English is 384, so it could remove documents that shouldn't be removed. The arguments are:
 
 - data_path: the path to the folder containing the extracted documents
 - output_path: the path to the folder where the deduplicated documents will be saved
@@ -24,7 +33,7 @@ To deduplicate the documents, run 02-deduplicate_data.py. This script will load 
 
 By default, it's False.
 
-## 03. Download the summarizer
+## 04. Download the summarizer
 The summarizer used is contained in a different repository, namely https://github.com/bocchilorenzo/text-summarizer. Running the script 03-download_summarizer.py will download the summarizer and save it in the folder "text_summarizer". Then, it will create an __init__.py file in order to be able to import it as a module and it will download the udpipe models. Finally, it will also install the requirements for the summarizer. The user still has to do two things, namely:
 
 - download the fastText, compressed fastText or word2vec model to use with the summarizer
@@ -32,7 +41,7 @@ The summarizer used is contained in a different repository, namely https://githu
 
 More instructions on how to do this can be found in the readme of the summarizer repository.
 
-## 04. Summarize the documents
+## 05. Summarize the documents
 To summarize the documents, run 04-summarize_dataset.py. This script will load the data year by year and summarize the documents using the summarizer downloaded in the previous step. The arguments are:
 
 - data_path: the path to the folder containing the deduplicated documents
