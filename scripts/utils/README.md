@@ -23,3 +23,6 @@ Useful script that automatically calculates the significance of the difference b
 This script updates the labels of the model. It is particularly useful when you want to change the labels of the model to the ones of the dataset (it should not be necessary if you train the model with the script in this repository). The script is 03-update_model_labels.py and it takes the following arguments:
 - model_path: the path to the model
 - labels: the path to the labels' JSON file
+
+## 04. Create mappings
+Useful if you want to use the inference script with textual labels instead of label ids. The script is 04-create_mappings.py and it takes no arguments. It will create a 'label_mappings' folder in the config directory and it will create the mappings in the various languages available.
