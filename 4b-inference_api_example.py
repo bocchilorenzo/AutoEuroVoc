@@ -36,8 +36,10 @@ classifier = pipeline(
     model=model_path,
     tokenizer=model_path,
     config=path.join(model_path, "config.json"),
+    device=device,
     top_k=top_k,
 )
+tokenizer_kwargs = {"padding": "max_length", "truncation": True, "max_length": 512}
 
 print("Starting API...")
 # Allow CORS for all origins
@@ -67,7 +69,7 @@ async def get_data():
 @app.post("/api")
 async def post_data(request: TextRequest):
     text = request.text
-    predictions = classifier(text)
+    predictions = classifier(text, **tokenizer_kwargs)
     if not threshold:
         # If no threshold is specified, return all the predictions
         if pred_type == "id":

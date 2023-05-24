@@ -1,25 +1,61 @@
 # AutoEuroVoc
 
-Library to automatically tag a document with the corresponding EuroVoc labels.
+Collection of Python scripts to create a document multilabel classifier with the corresponding EuroVoc labels. The scripts require at least Python 3.6.
 
 ## How it works
 
-It uses a BERT model trained for multilabel classification.
+It uses a BERT model trained for multilabel classification. It is multilanguage and can be trained on the following languages: `bg`, `cs`, `da`, `de`, `el`, `en`, `es`, `et`, `fi`, `fr`, `hu`, `it`, `lt`, `lv`, `mt`, `nl`, `pl`, `pt`, `ro`, `sk`, `sl`, `sv`.
 
 ## How to use
+First of all, clone the repository:
+```bash
+git clone https://github.com/bocchilorenzo/AutoEuroVoc.git
+```
 
-WIP
+### Requirements
+The requirements are listed in the `requirements.txt` file. To install them, run:
+```bash
+pip install -r requirements.txt
+```
 
-## How to train
+### Download the data
+You can either download one of the data variants by running the `0-download.py` script or create your own dataset. To create your own, follow the instructions in the `scripts/create_dataset/README.md` file.
 
-WIP
+### Preprocess the data
+To preprocess the data, run the `1-preprocess.py` script. It will create a `data` folder containing the preprocessed data. It has many options, run `python 1-preprocess.py --help` to see them.
 
-## How to evaluate
+### Set the seeds
+In the `config/seeds.txt` file, you can set the seeds to use during preprocessing and training. Right now, only one seed is set, but to set more simply write them in separate lines.
 
-WIP
+### Train the model
+To train the model, run the `2-train.py` script. It will create a `models` folder containing the trained model. The model used depends on the language chosen. The list of models used for the various languages is contained in `config/models.yml`. Once again, the script has many options. Run `python 2-train.py --help` to see them.
+
+### Evaluate the model
+Once the model has been trained, it can be evaluated by running `3-evaluate.py`. It will print the evaluation metrics on the test set, as well as saving them in the model directory. The script has a few options that can be set, such as batch size and device to use. Run `python 3-evaluate.py --help` to see them.
+
+### Use the model in production
+There are two more scripts that can be used after the models were created, namely `4a-inference_single_example.py` and `4b-inference_api_example.py`. The first one is used to make predictions on a single example, while the second one is used to create a basic REST API that can be used to make predictions as a web service. The API is created using FastAPI and can be run by running `uvicorn 4b-inference_api_example:app --host 0.0.0.0 --port 8000`. Check the uvicorn docs for more information. Before running the API, you can add some parameters via environment variables. The parameters are:
+- `MODEL_PATH`: the path to the model to use. The default path is `./model`.
+- `DEVICE`: the device to use. The default device is `cpu`. To use the GPU, set it to `cuda` followed by the number of the GPU, for example `cuda:0`.
+- `PRED_TYPE`: whether to return only the label ids or the label ids and the corresponding labels. The default is `id`, to obtain the labels use `labels`.
+- `TOP_K`: the number of labels to return. Do not set it if you don't need it.
+- `THRESHOLD`: the threshold to use to filter the labels confidence. Do not set it if you don't need it.
+
+If neither of the last two are set, all the labels will be returned. If `THRESHOLD` is used, `TOP_K` will be ignored.
+
+To send text to the API, make a POST request to `http://localhost:8000/api` with the following body:
+```json
+{
+    "text": "Your text here"
+}
+```
 
 ## TODO
 
-[ ] Add download script
+[ ] Edit download script with correct options and URLs
 
-[X] Add evaluation script
+[ ] Add parameters of the scripts in this README
+
+[ ] Show examples of the data
+
+[ ] Show examples of the API
