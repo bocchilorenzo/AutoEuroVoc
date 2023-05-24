@@ -13,7 +13,7 @@ git clone https://github.com/bocchilorenzo/AutoEuroVoc.git
 ```
 
 ### Requirements
-The requirements are listed in the `requirements.txt` file. To install them, run:
+Before installing the requirements, you will need to install PyTorch. After that, the requirements are listed in the `requirements.txt` file. To install them, run:
 ```bash
 pip install -r requirements.txt
 ```
