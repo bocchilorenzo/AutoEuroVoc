@@ -92,14 +92,14 @@ def start_evaluate():
         with open("config/seeds.txt", "r") as seeds_fp:
             seeds = seeds_fp.readlines()
 
-        # Load the data
-        datasets = load_data(args.data_path, lang, "test")
-
-        for split_idx, (test_set) in enumerate(datasets):
+        for split_idx in range(len(seeds)):
             if not path.exists(
                 path.join(args.models_path, lang, str(split_idx))
             ):
                 break
+
+            # Load the data
+            test_set = load_data(args.data_path, lang, "test", split_idx)
 
             # Get the last checkpoint
             last_checkpoint = max(
