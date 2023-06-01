@@ -1,5 +1,5 @@
 import json
-from os import listdir, path
+from os import listdir, path, makedirs
 import gzip
 import argparse
 
@@ -7,6 +7,8 @@ def extract_documents(args):
     path_docs = args.data_path
     years = [name for name in listdir(path_docs) if path.isfile(path.join(path_docs, name)) and name.endswith(".json.gz")]
     final_path = args.output_path
+
+    makedirs(final_path, exist_ok=True)
 
     print(f"Working on data from {path_docs}")
     
