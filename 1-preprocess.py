@@ -58,7 +58,7 @@ def save_splits(X, masks, y, directory, mlb):
         to_print = f"{i} - Splitted the documents in - train: {train_X.shape[0]}, dev: {dev_X.shape[0]}, test: {test_X.shape[0]}"
         print(to_print)
 
-        with open(os.path.join(args.data_path, directory, "stats.txt"), "a") as f:
+        with open(os.path.join(args.data_path, directory, "stats.txt"), "a+") as f:
             f.write(to_print + "\n")
 
         if not os.path.exists(os.path.join(args.data_path, directory, f"split_{i}")):
@@ -101,6 +101,8 @@ def process_year(path, tokenizer, max_len=512):
     big_document_ct = 0
     unk_ct = 0
     tokens_ct = 0
+
+    tokenizer_kwargs = {"padding": "max_length", "truncation": True, "max_length": args.max_length}
 
     list_inputs = []
     list_labels = []
@@ -166,28 +168,40 @@ def process_year(path, tokenizer, max_len=512):
                 text = re.sub(r'\n', ' ', text)
                 text = re.sub(" +", " ", text).strip()
             
-            inputs_ids = tensor(tokenizer.encode(text))
+            if args.limit_tokenizer:
+                inputs_ids = tensor(tokenizer.encode(text, **tokenizer_kwargs))
+            else:
+                inputs_ids = tensor(tokenizer.encode(text))
 
-            document_ct += 1
+            if not args.limit_tokenizer:
+                document_ct += 1
 
-            for token in inputs_ids[1: -1]:
-                if token == tokenizer.unk_token_id:
-                    unk_ct += 1
+                # We count the number of unknown tokens and the total number of tokens.
+                for token in inputs_ids[1: -1]:
+                    if token == tokenizer.unk_token_id:
+                        unk_ct += 1
 
-                tokens_ct += 1
+                    tokens_ct += 1
 
-            if len(inputs_ids) > max_len:
-                big_document_ct += 1
-                inputs_ids = inputs_ids[:max_len]
+                # If the input is over the maximum length, we cut it and increment the count of big documents.
+                if len(inputs_ids) > max_len:
+                    big_document_ct += 1
+                    inputs_ids = inputs_ids[:max_len]
 
             list_inputs.append(inputs_ids)
             list_labels.append(labels)
             list_masks.append(ones_like(inputs_ids))
-
-    to_print = f"Dataset stats: - total documents: {document_ct}, big documents: {big_document_ct}, ratio: {big_document_ct / document_ct * 100:.4f}%"
-    to_print += f"\n               - total tokens: {tokens_ct}, unk tokens: {unk_ct}, ratio: {unk_ct / tokens_ct * 100:.4f}%"
-
-    print(to_print)
+    
+    if len(list_inputs) == 0:
+        print("No documents found in the dataset.")
+        to_print = ""
+    else:
+        if not args.limit_tokenizer:
+            to_print = f"Dataset stats: - total documents: {document_ct}, big documents: {big_document_ct}, ratio: {big_document_ct / document_ct * 100:.4f}%"
+            to_print += f"\n               - total tokens: {tokens_ct}, unk tokens: {unk_ct}, ratio: {unk_ct / tokens_ct * 100:.4f}%"
+            print(to_print)
+        else:
+            to_print = ""
 
     return list_inputs, list_masks, list_labels, to_print
 
@@ -253,9 +267,10 @@ def process_datasets(data_path, directory, tokenizer_name):
     with open(os.path.join(args.data_path, directory, "mlb_encoder.pickle"), "wb") as pickle_fp:
         pickle.dump(mlb, pickle_fp, protocol=pickle.HIGHEST_PROTOCOL)
     
-    with open(os.path.join(args.data_path, directory, "stats.txt"), "w") as stats_fp:
-        for year, year_stats in zip(list_years, list_stats):
-            stats_fp.write(f"Year: {year}\n{year_stats}\n\n")
+    if not args.limit_tokenizer:
+        with open(os.path.join(args.data_path, directory, "stats.txt"), "w") as stats_fp:
+            for year, year_stats in zip(list_years, list_stats):
+                stats_fp.write(f"Year: {year}\n{year_stats}\n\n")
 
     save_splits(X, masks, y, directory, mlb)
 
@@ -295,6 +310,7 @@ if __name__ == "__main__":
     parser.add_argument("--years", type=str, default="all", help="Year range to be processed, separated by a comma (e.g. 2010,2020 will get all the years between 2010 and 2020 included). Write 'all' to process all the years.")
     parser.add_argument("--langs", type=str, default="it", help="Languages to be processed, separated by a comme (e.g. en,it). Write 'all' to process all the languages.")
     parser.add_argument("--max_length", type=int, default=512, help="Maximum number of words of the text to be processed.")
+    parser.add_argument("--limit_tokenizer", action="store_true", default=False, help="Limit the tokenizer length to the maximum number of words. This will remove the statistics for the documents length.")
     parser.add_argument("--add_title", action="store_true", default=False, help="Add the title to the text.")
     parser.add_argument("--title_only", action="store_true", default=False, help="Use only the title as input.")
     parser.add_argument("--add_mt_do", action="store_true", default=False, help="Add the MicroThesaurus and Domain labels to be predicted.")
