@@ -84,8 +84,6 @@ def start_train():
 
     print(f"Working on device: {args.device}")
 
-    print(f"\nTraining for language: '{lang}' using: '{config[lang]}'...")
-
     print(f"\nArguments: {vars(args)}")
 
     # Create the directory for the models
@@ -100,6 +98,8 @@ def start_train():
 
         global language
         language = lang
+
+        print(f"\nTraining for language: '{lang}' using: '{config[lang]}'...")
 
         # Train the models for all splits
         for split_idx in range(len(seeds)):
