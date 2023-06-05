@@ -206,7 +206,7 @@ if __name__ == "__main__":
     parser.add_argument("--lang", type=str, default="all", help="Language to train the model on.")
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to train on.")
-    parser.add_argument("--epochs", type=int, default=30, help="Number of epochs to train the model.")
+    parser.add_argument("--epochs", type=int, default=100, help="Number of epochs to train the model.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
     parser.add_argument("--learning_rate", type=float, default=3e-5, help="Learning rate.")
     parser.add_argument("--max_grad_norm", type=int, default=5, help="Gradient clipping norm.")
@@ -220,10 +220,10 @@ if __name__ == "__main__":
         'precision_micro', 'precision_macro', 'precision_weighted', 'precision_samples',
         'recall_micro', 'recall_macro', 'recall_weighted', 'recall_samples',
         'hamming_loss', 'accuracy', 'ndcg_1', 'ndcg_3', 'ndcg_5', 'ndcg_10'],
-        help="Evaluation metric to use for the optimization.")
+        help="Evaluation metric to use on the validation set.")
     parser.add_argument("--full_metrics", action="store_true", default=False, help="Compute all the metrics during the evaluation.")
     parser.add_argument("--trust_remote", action="store_true", default=False, help="Trust the remote code for the model.")
-    parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models")
+    parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models.")
     parser.add_argument("--save_class_report", action="store_true", default=False, help="Save the classification report.")
     parser.add_argument("--class_report_step", type=int, default=1, help="Number of epochs before creating a new classification report.")
 
