@@ -92,19 +92,19 @@ def save_splits(X, masks, y, directory, mlb):
 
         X, masks, y = shuffle(X, masks, y, random_state=int(seed))
 
-def process_year(path, tokenizer, args):
+def process_year(params):
     """
     Process a year of the dataset.
 
-    :param path: Path to the year.
-    :param tokenizer: Tokenizer to use.
-    :param args: Arguments.
+    :param params: Tuple containing, the path to the year, the tokenizer and the arguments.
     :return: List of inputs, masks and labels.
     """
     document_ct = 0
     big_document_ct = 0
     unk_ct = 0
     tokens_ct = 0
+
+    path, tokenizer, args = params
 
     tokenizer_kwargs = {"padding": "max_length", "truncation": True, "max_length": args.max_length}
 
@@ -254,7 +254,7 @@ def process_datasets(data_path, directory, tokenizer_name):
     # If the dataset is the Senato one, there is only one file to process.
     if directory == "senato":
         print("Processing Senato dataset...")
-        list_inputs, list_masks, list_labels, year_stats = process_year(os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer, max_len=args.max_length)
+        list_inputs, list_masks, list_labels, year_stats = process_year((os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer, args))
     else:
         if not args.multi_core:
             for year in args.years.split(","):
@@ -262,7 +262,7 @@ def process_datasets(data_path, directory, tokenizer_name):
                     print(f"Processing summarized year: '{year}'...")
                 else:
                     print(f"Processing year: '{year}'...")
-                year_inputs, year_masks, year_labels, year_stats = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, max_len=args.max_length)
+                year_inputs, year_masks, year_labels, year_stats = process_year((os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, args))
                 
                 list_inputs += year_inputs
                 list_masks += year_masks
@@ -271,8 +271,11 @@ def process_datasets(data_path, directory, tokenizer_name):
                 list_years.append(year)
         else:
             print("Processing data in parallel...")
-            with Pool(int(args.cpu_count)) as pool:
-                results = pool.starmap(process_year, [(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, args) for year in args.years.split(",")])
+
+            with Pool(args.cpu_count) as p:
+                results = list(
+                    p.imap(process_year, [(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, args) for year in args.years.split(",")])
+                )
             
             print(f"{datetime.now().replace(microsecond=0)} - Merging results...")
             for i, result in enumerate(results):
