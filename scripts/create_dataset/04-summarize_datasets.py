@@ -1,15 +1,26 @@
-from os import makedirs, path
+from os import makedirs, path, remove, rename
 from text_summarizer import Summarizer
-
-import numpy as np
-import json
-import gzip
+import json, gzip, argparse, zipfile, urllib.request
 from tqdm import tqdm
-import argparse
+import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
 
+def check_models():
+    if not path.exists("./text_summarizer/models"):
+        print("Downloading udpipe models...")
+        url = "https://lindat.mff.cuni.cz/repository/xmlui/bitstream/handle/11234/1-3131/udpipe-ud-2.5-191206.zip?sequence=1&isAllowed=y"
+        urllib.request.urlretrieve(url, path.join("./", "udpipe.zip"))
+        with zipfile.ZipFile(path.join("./", "udpipe.zip"), 'r') as zip_ref:
+            zip_ref.extractall(path.join("./", "text_summarizer"))
+        rename(path.join("./", "text_summarizer", "udpipe-ud-2.5-191206"), path.join("./", "text_summarizer", "models"))
+
+        remove(path.join("./", "udpipe.zip"))
+
 def summarize_data(args):
-    print("Loading model...")
+    if args.tokenizer == "udpipe":
+        check_models()
+
+    print(f"Loading {args.model_type} model...")
     model = Summarizer(
         language=args.summ_lang,
         model_path=args.model_path,
@@ -38,12 +49,14 @@ def summarize_data(args):
             text = data[doc]["full_text"]
             ids, text = model.summarize(text)
             if len(ids) == 0 and len(text) == 0:
-                print(file, doc)
                 to_del.add(doc)
                 continue
             data[doc]["full_text"] = text
             data[doc]["importance"] = [id_imp[1] for id_imp in ids]
         
+        print(f"Documents removed: {len(to_del)}")
+        if len(to_del) > 0:
+            print(f"List of removed documents: {', '.join(to_del)}")
         for doc in to_del:
             del data[doc]
         with gzip.open(path.join(new_path, f"{file}_sum_centroid{'_compressed' if args.compressed else '_full'}.json.gz"), "wt", encoding="utf-8") as fp:
@@ -56,7 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("--summ_lang", type=str, default="italian", help="Language of the summarizer model")
     parser.add_argument("--model_path", type=str, default="./cc.it.300.bin", help="Path to the folder containing the summarizer model")
     parser.add_argument("--compressed", action="store_true", default=False, help="Whether the model is compressed or not")
-    parser.add_argument("--tokenizer", type=str, default="udpipe", choices=["udpipe", "nltk"], help="Tokenizer to use for the summarizer")
+    parser.add_argument("--tokenizer", type=str, default="nltk", choices=["udpipe", "nltk"], help="Tokenizer to use for the summarizer")
     parser.add_argument("--model_type", type=str, default="fasttext", choices=["fasttext", "word2vec"], help="Type of the summarizer model")
     parser.add_argument("--years", type=str, default="2010-2022", help="Range of years to summarize (extremes included)")
 
