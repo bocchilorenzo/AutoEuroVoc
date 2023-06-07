@@ -17,6 +17,7 @@ import pickle
 import math
 from copy import deepcopy
 from datetime import datetime
+from multiprocessing import Pool
 
 seeds = []
 
@@ -39,6 +40,9 @@ def save_splits(X, masks, y, directory, mlb):
     :param mlb: MultiLabelBinarizer object.
     """
     global seeds
+
+    print(f"{datetime.now().replace(microsecond=0)} - Saving splits...")
+
     for i, seed in enumerate(seeds):
         np.random.seed(int(seed))
         stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[0.2, 0.8])
@@ -88,13 +92,13 @@ def save_splits(X, masks, y, directory, mlb):
 
         X, masks, y = shuffle(X, masks, y, random_state=int(seed))
 
-def process_year(path, tokenizer, max_len=512):
+def process_year(path, tokenizer, args):
     """
     Process a year of the dataset.
 
     :param path: Path to the year.
     :param tokenizer: Tokenizer to use.
-    :param max_len: Maximum length of the documents.
+    :param args: Arguments.
     :return: List of inputs, masks and labels.
     """
     document_ct = 0
@@ -108,11 +112,15 @@ def process_year(path, tokenizer, max_len=512):
     list_labels = []
     list_masks = []
 
+    if args.multi_core:
+        print(f"{datetime.now().replace(microsecond=0)} - Processing {path}")
+
     with gzip.open(path, "rt", encoding="utf-8") as file:
         data = json.load(file)
         j = 1
         for doc in data:
-            print(f"{datetime.now().replace(microsecond=0)} - {j}/{len(data)}", end="\r")
+            if not args.multi_core:
+                print(f"{datetime.now().replace(microsecond=0)} - {j}/{len(data)}", end="\r")
             j += 1
             text = ""
             if args.add_mt_do:
@@ -149,9 +157,9 @@ def process_year(path, tokenizer, max_len=512):
                     phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
 
                     # First, we get the most important phrases until the maximum length is reached.
-                    if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > max_len:
+                    if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
                         backup = deepcopy(phrase_importance)
-                        while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > max_len:
+                        while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
                             phrase_importance = phrase_importance[:-1]
                         phrase_importance.append(backup[len(phrase_importance)])
 
@@ -184,9 +192,9 @@ def process_year(path, tokenizer, max_len=512):
                     tokens_ct += 1
 
                 # If the input is over the maximum length, we cut it and increment the count of big documents.
-                if len(inputs_ids) > max_len:
+                if len(inputs_ids) > args.max_length:
                     big_document_ct += 1
-                    inputs_ids = inputs_ids[:max_len]
+                    inputs_ids = inputs_ids[:args.max_length]
 
             list_inputs.append(inputs_ids)
             list_labels.append(labels)
@@ -243,18 +251,33 @@ def process_datasets(data_path, directory, tokenizer_name):
         print("Processing Senato dataset...")
         list_inputs, list_masks, list_labels, year_stats = process_year(os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer, max_len=args.max_length)
     else:
-        for year in args.years.split(","):
-            if args.summarized:
-                print(f"Processing summarized year: '{year}'...")
-            else:
-                print(f"Processing year: '{year}'...")
-            year_inputs, year_masks, year_labels, year_stats = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, max_len=args.max_length)
+        if not args.multi_core:
+            for year in args.years.split(","):
+                if args.summarized:
+                    print(f"Processing summarized year: '{year}'...")
+                else:
+                    print(f"Processing year: '{year}'...")
+                year_inputs, year_masks, year_labels, year_stats = process_year(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, max_len=args.max_length)
+                
+                list_inputs += year_inputs
+                list_masks += year_masks
+                list_labels += year_labels
+                list_stats.append(year_stats)
+                list_years.append(year)
+        else:
+            print("Processing data in parallel...")
+            with Pool(int(args.cpu_count)) as pool:
+                results = pool.starmap(process_year, [(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, args) for year in args.years.split(",")])
             
-            list_inputs += year_inputs
-            list_masks += year_masks
-            list_labels += year_labels
-            list_stats.append(year_stats)
-            list_years.append(year)
+            print(f"{datetime.now().replace(microsecond=0)} - Merging results...")
+            for i, result in enumerate(results):
+                list_inputs += result[0]
+                list_masks += result[1]
+                list_labels += result[2]
+                list_stats.append(result[3])
+                list_years.append(args.years.split(",")[i])
+            
+            del results
 
     assert len(list_inputs) == len(list_masks) == len(list_labels)
 
@@ -317,6 +340,8 @@ if __name__ == "__main__":
     parser.add_argument("--senato", action="store_true", default=False, help="Process the Senato data instead of the EUR-Lex one.")
     parser.add_argument("--summarized", action="store_true", default=False, help="Process the summarized data instead of the full text one.")
     parser.add_argument("--summ_mode", type=str, default="centroid_full", choices=["centroid_full", "centroid_compressed", "centroid_compressed_bigram", "tfidf_l1", "tfidf_l2"], help="Summarization method to use. Only used if --summarized is also used.")
+    parser.add_argument("--multi_core", action="store_true", default=False, help="Use multiple cores to process the data.")
+    parser.add_argument("--cpu_count", type=int, default=2, help="Number of cores to use. Only used if --multi_core is also used.")
     args = parser.parse_args()
 
     preprocess_data()
