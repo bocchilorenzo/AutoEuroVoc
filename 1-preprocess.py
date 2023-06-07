@@ -96,7 +96,7 @@ def process_year(params):
     """
     Process a year of the dataset.
 
-    :param params: Tuple containing, the path to the year, the tokenizer and the arguments.
+    :param params: Tuple containing, the path to the year, the tokenizer name and the arguments.
     :return: List of inputs, masks and labels.
     """
     document_ct = 0
@@ -104,7 +104,9 @@ def process_year(params):
     unk_ct = 0
     tokens_ct = 0
 
-    path, tokenizer, args = params
+    path, tokenizer_name, args = params
+
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
     tokenizer_kwargs = {"padding": "max_length", "truncation": True, "max_length": args.max_length}
 
@@ -226,7 +228,6 @@ def process_datasets(data_path, directory, tokenizer_name):
     :param directory: Language directory.
     :param tokenizer_name: Name of the tokenizer to use.
     """
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
     list_inputs = []
     list_masks = []
@@ -254,7 +255,7 @@ def process_datasets(data_path, directory, tokenizer_name):
     # If the dataset is the Senato one, there is only one file to process.
     if directory == "senato":
         print("Processing Senato dataset...")
-        list_inputs, list_masks, list_labels, year_stats = process_year((os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer, args))
+        list_inputs, list_masks, list_labels, year_stats = process_year((os.path.join(data_path, directory, "aic-out.json.gz"), tokenizer_name, args))
     else:
         if not args.multi_core:
             for year in args.years.split(","):
@@ -262,7 +263,7 @@ def process_datasets(data_path, directory, tokenizer_name):
                     print(f"Processing summarized year: '{year}'...")
                 else:
                     print(f"Processing year: '{year}'...")
-                year_inputs, year_masks, year_labels, year_stats = process_year((os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, args))
+                year_inputs, year_masks, year_labels, year_stats = process_year((os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer_name, args))
                 
                 list_inputs += year_inputs
                 list_masks += year_masks
@@ -274,7 +275,7 @@ def process_datasets(data_path, directory, tokenizer_name):
 
             with Pool(args.cpu_count) as p:
                 results = list(
-                    p.imap(process_year, [(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer, args) for year in args.years.split(",")])
+                    p.imap(process_year, [(os.path.join(data_path, directory, f"{year}.json.gz"), tokenizer_name, args) for year in args.years.split(",")])
                 )
             
             print(f"{datetime.now().replace(microsecond=0)} - Merging results...")
@@ -292,6 +293,7 @@ def process_datasets(data_path, directory, tokenizer_name):
     mlb = MultiLabelBinarizer()
     y = mlb.fit_transform(list_labels)
 
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
     X = pad_sequence(list_inputs, batch_first=True, padding_value=tokenizer.pad_token_id).numpy()
     masks = pad_sequence(list_masks, batch_first=True, padding_value=0).numpy()
 
