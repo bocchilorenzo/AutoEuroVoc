@@ -200,12 +200,17 @@ def process_year(path, tokenizer, args):
             list_labels.append(labels)
             list_masks.append(ones_like(inputs_ids))
     
+    del data
+
     if len(list_inputs) == 0:
         print("No documents found in the dataset.")
         to_print = ""
     else:
         if not args.limit_tokenizer:
-            to_print = f"Dataset stats: - total documents: {document_ct}, big documents: {big_document_ct}, ratio: {big_document_ct / document_ct * 100:.4f}%"
+            if not args.multi_core:
+                to_print = f"Dataset stats: - total documents: {document_ct}, big documents: {big_document_ct}, ratio: {big_document_ct / document_ct * 100:.4f}%"
+            else:
+                to_print = f"Stats for {path}: - total documents: {document_ct}, big documents: {big_document_ct}, ratio: {big_document_ct / document_ct * 100:.4f}%"
             to_print += f"\n               - total tokens: {tokens_ct}, unk tokens: {unk_ct}, ratio: {unk_ct / tokens_ct * 100:.4f}%"
             print(to_print)
         else:
