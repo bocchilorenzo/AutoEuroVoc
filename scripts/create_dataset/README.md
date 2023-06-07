@@ -39,13 +39,13 @@ The summarizer is based on the code at https://github.com/holydrinker/text-summa
 The code was adapted to allow for the use of either a Word2Vec model or a fastText model. It also has the ability to work with compressed fastText models in order to be usable in an environment with limited resources.
 
 ### How to use
-NOTE: You can skip steps 1, 2 and 3 if you already have UDpipe 1 and the models installed or if you want to use the NLTK sentence tokenizer instead of UDpipe's.
+NOTE: You can skip step 1 if you already have UDpipe 1 and the models installed or if you want to use the NLTK sentence tokenizer instead of UDpipe's.
 
 1. Install UDpipe 1. You can find installation instructions on https://ufal.mff.cuni.cz/udpipe/1/install. In short, download the release from Github and install the binary (on Windows, copy the folder for either the 32bit or 64bit binary wherever you want and add its path to the PATH environment variable).
 
 2. Download a word embeddings model. We recommend using fastText.
 
-3. Run 04-summarize_dataset.py. Before doing the summarization, the script will check if the UDPipe models are present. If they aren't, they will be downloaded. This script will load the data year by year and summarize the documents using the summarizer downloaded in the previous step. The arguments are:
+3. Run 04-summarize_dataset.py. Before doing the summarization, the script will check if the UDPipe models are present (only if the udpipe tokenizer is used). If they aren't, they will be downloaded. This script will load the data year by year and summarize the documents using the summarizer downloaded in the previous step. The arguments are:
 
 - data_path: the path to the folder containing the deduplicated documents
 - output_path: the path to the folder where the summarized documents will be saved
