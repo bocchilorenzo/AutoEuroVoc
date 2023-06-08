@@ -273,7 +273,7 @@ def process_datasets(data_path, directory, tokenizer_name):
         else:
             print("Processing data in parallel...")
 
-            multiprocessing.set_sharing_strategy('file_system')
+            #multiprocessing.set_sharing_strategy('file_system')
 
             with Pool(args.cpu_count) as p:
                 results = list(
