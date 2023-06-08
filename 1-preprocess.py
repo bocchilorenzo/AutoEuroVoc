@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 from skmultilearn.model_selection import IterativeStratification
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.utils import shuffle
-from torch import tensor, ones_like
+from torch import tensor, ones_like, device, multiprocessing
 from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 import json
@@ -179,9 +179,9 @@ def process_year(params):
                 text = re.sub(" +", " ", text).strip()
             
             if args.limit_tokenizer:
-                inputs_ids = tensor(tokenizer.encode(text, **tokenizer_kwargs))
+                inputs_ids = tensor(tokenizer.encode(text, **tokenizer_kwargs), device=device("cpu"))
             else:
-                inputs_ids = tensor(tokenizer.encode(text))
+                inputs_ids = tensor(tokenizer.encode(text), device=device("cpu"))
 
             if not args.limit_tokenizer:
                 document_ct += 1
@@ -202,7 +202,7 @@ def process_year(params):
             list_labels.append(labels)
             list_masks.append(ones_like(inputs_ids))
     
-    del data
+    del data, inputs_ids, labels, text, tokenizer
 
     if len(list_inputs) == 0:
         print("No documents found in the dataset.")
@@ -272,6 +272,8 @@ def process_datasets(data_path, directory, tokenizer_name):
                 list_years.append(year)
         else:
             print("Processing data in parallel...")
+
+            multiprocessing.set_sharing_strategy('file_system')
 
             with Pool(args.cpu_count) as p:
                 results = list(
