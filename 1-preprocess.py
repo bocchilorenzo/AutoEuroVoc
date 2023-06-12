@@ -179,9 +179,9 @@ def process_year(params):
                 text = re.sub(" +", " ", text).strip()
             
             if args.limit_tokenizer:
-                inputs_ids = tensor(tokenizer.encode(text, **tokenizer_kwargs), device=device("cpu"))
+                inputs_ids = tensor(tokenizer.encode(text, **tokenizer_kwargs))
             else:
-                inputs_ids = tensor(tokenizer.encode(text), device=device("cpu"))
+                inputs_ids = tensor(tokenizer.encode(text))
 
             if not args.limit_tokenizer:
                 document_ct += 1
@@ -272,8 +272,6 @@ def process_datasets(data_path, directory, tokenizer_name):
                 list_years.append(year)
         else:
             print("Processing data in parallel...")
-
-            #multiprocessing.set_sharing_strategy('file_system')
 
             with Pool(args.cpu_count) as p:
                 results = list(

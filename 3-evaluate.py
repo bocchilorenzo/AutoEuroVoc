@@ -27,6 +27,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
         threshold,
         True,
         True,
+        args.parents,
     )
 
     # Save the classification report
@@ -148,6 +149,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to evaluate on.")
+    parser.add_argument("--parents", type=str, default="none", choices=["none", "add", "builtin"], help="How to handle the parents of the labels. Add them 'artificially' with the 'add' option, or use the 'builtin' option if the labels were added during training. NOTE: The 'builtin' option is not implemented yet.")
     parser.add_argument("--models_path", type=str, default="models/", help="Path of the saved models.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the predictions.")
     parser.add_argument("--trust_remote", action="store_true", default=False, help="Trust the remote code for the model.")

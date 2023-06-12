@@ -102,6 +102,7 @@ class CustomTrainer(Trainer):
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
         return (loss, outputs) if return_outputs else loss
+    
 
 def sklearn_metrics_core(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False):
     """
@@ -110,9 +111,9 @@ def sklearn_metrics_core(y_true, predictions, data_path, threshold=0.5, get_conf
     :param y_true: True labels.
     :param predictions: Predictions.
     :param data_path: Path to the data.
-    :param threshold: Threshold to use for the predictions. Default: 0.5.
-    :param get_conf_matrix: Whether to get the confusion matrix. Default: False.
-    :param get_class_report: Whether to get the classification report. Default: False.
+    :param threshold: Threshold to use for the predictions.
+    :param get_conf_matrix: Whether to get the confusion matrix.
+    :param get_class_report: Whether to get the classification report.
     :return: Initialized variables.
     """
     # Convert the predictions to binary
@@ -144,61 +145,27 @@ def sklearn_metrics_core(y_true, predictions, data_path, threshold=0.5, get_conf
 
     return probs, y_pred, conf_matrix, class_report, to_return
 
-def sklearn_metrics_full(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False):
+
+def sklearn_metrics_full(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False, parent_handling="none"):
     """
     Return all the metrics and the classification report for the predictions.
     
     :param y_true: True labels.
     :param predictions: Predictions.
-    :param threshold: Threshold for the predictions. Default: 0.5.
-    :param get_conf_matrix: If True, return the confusion matrix. Default: False.
-    :param get_class_report: If True, return the classification report. Default: False.
+    :param threshold: Threshold for the predictions.
+    :param get_conf_matrix: If True, return the confusion matrix.
+    :param get_class_report: If True, return the classification report.
+    :param parent_handling: How to handle the parent labels.
     :return: A dictionary with the metrics and a classification report.
     """
     probs, y_pred, conf_matrix, class_report, to_return = sklearn_metrics_core(y_true, predictions, data_path, threshold, get_conf_matrix, get_class_report)
 
-    averaging=["micro", "macro", "weighted", "samples"]
+    to_return = calculate_metrics(y_true, y_pred, probs, to_return)
 
-    to_return["accuracy"] = accuracy_score(y_true, y_pred)
-    
-    true_labels = [nonzero(Tensor(labels), as_tuple=True)[0] for labels in y_true]
-    pred_labels = sort(probs, descending=True)[1][:, :6]
-    pk_scores = [np.intersect1d(true, pred).shape[0] / pred.shape[0] + 1e-10 for true, pred in
-                    zip(true_labels, pred_labels)]
-    rk_scores = [np.intersect1d(true, pred).shape[0] / true.shape[0] + 1e-10 for true, pred in
-                    zip(true_labels, pred_labels)]
-    f1k_scores = [2 * recall * precision / (recall + precision) for recall, precision in zip(pk_scores, rk_scores)]
-    to_return["f1_pyeurovoc"] = sum(f1k_scores) / len(f1k_scores)
-    for avg in averaging:
-        to_return[f"f1_{avg}"] = f1_score(y_true, y_pred, average=avg, zero_division=0)
-    
-    for avg in averaging:
-        to_return[f"precision_{avg}"] = precision_score(y_true, y_pred, average=avg, zero_division=0)
-    
-    for avg in averaging:
-        to_return[f"recall_{avg}"] = recall_score(y_true, y_pred, average=avg, zero_division=0)
-    
-    to_return["hamming_loss"] = hamming_loss(y_true, y_pred)
-    
-    for avg in averaging:
-        to_return[f"jaccard_{avg}"] = jaccard_score(y_true, y_pred, average=avg, zero_division=0)
-    
-    references = np.array(y_true)
-    predictions = np.array(y_pred)
-    to_return["matthews_macro"] = np.mean([
-        matthews_corrcoef(y_true=references[:, i], y_pred=predictions[:, i], sample_weight=None)
-        for i in range(references.shape[1])
-    ])
-    to_return["matthews_micro"] = matthews_corrcoef(y_true=references.ravel(), y_pred=predictions.ravel())
-    
-    for avg in averaging:
-        try:
-            to_return[f"roc_auc_{avg}"] = roc_auc_score(y_true, y_pred, average=avg)
-        except ValueError:
-            to_return[f"roc_auc_{avg}"] = 0.0
-    
-    for k in [1, 3, 5, 10]:
-        to_return[f"ndcg_{k}"] = ndcg_score(y_true, y_pred, k=k)
+    if parent_handling == "add":
+        to_return.update(calculate_parent_metrics_add(y_true, predictions, data_path))
+    elif parent_handling == "builtin":
+        to_return.update(calculate_parent_metrics_builtin(y_true, predictions, data_path))
 
     return to_return, class_report, conf_matrix
 
@@ -210,10 +177,10 @@ def sklearn_metrics_single(y_true, predictions, data_path, threshold=0.5, get_co
     
     :param y_true: True labels.
     :param predictions: Predictions.
-    :param threshold: Threshold for the predictions. Default: 0.5.
-    :param get_conf_matrix: If True, return the confusion matrix. Default: False.
-    :param get_class_report: If True, return the classification report. Default: False.
-    :param eval_metric: The metric to use for the evaluation. Default: ''.
+    :param threshold: Threshold for the predictions.
+    :param get_conf_matrix: If True, return the confusion matrix.
+    :param get_class_report: If True, return the classification report.
+    :param eval_metric: The metric to use for the evaluation.
     :return: A dictionary with the metric and a classification report.
     """
     _, y_pred, conf_matrix, class_report, to_return = sklearn_metrics_core(y_true, predictions, data_path, threshold, get_conf_matrix, get_class_report)
@@ -247,6 +214,195 @@ def sklearn_metrics_single(y_true, predictions, data_path, threshold=0.5, get_co
 
     return to_return, class_report, conf_matrix
 
+
+def calculate_metrics(y_true, y_pred, probs, to_return):
+    """
+    Calculates the metrics.
+    :param y_true: True labels.
+    :param y_pred: Predicted labels.
+    :param probs: Predicted probabilities.
+    :param to_return: Dictionary to return.
+    """
+    averaging=["micro", "macro", "weighted", "samples"]
+
+    to_return["accuracy"] = accuracy_score(y_true, y_pred)
+    
+    true_labels = [nonzero(Tensor(labels), as_tuple=True)[0] for labels in y_true]
+    pred_labels = sort(probs, descending=True)[1][:, :6]
+    pk_scores = [np.intersect1d(true, pred).shape[0] / (pred.shape[0] + 1e-10) for true, pred in
+                    zip(true_labels, pred_labels)]
+    rk_scores = [np.intersect1d(true, pred).shape[0] / (true.shape[0] + 1e-10) for true, pred in
+                    zip(true_labels, pred_labels)]
+    f1k_scores = [2 * recall * precision / (recall + precision + 1e-10) for recall, precision in zip(pk_scores, rk_scores)]
+    to_return["f1_pyeurovoc"] = sum(f1k_scores) / len(f1k_scores)
+    for avg in averaging:
+        to_return[f"f1_{avg}"] = f1_score(y_true, y_pred, average=avg, zero_division=0)
+    
+    for avg in averaging:
+        to_return[f"precision_{avg}"] = precision_score(y_true, y_pred, average=avg, zero_division=0)
+    
+    for avg in averaging:
+        to_return[f"recall_{avg}"] = recall_score(y_true, y_pred, average=avg, zero_division=0)
+    
+    to_return["hamming_loss"] = hamming_loss(y_true, y_pred)
+    
+    for avg in averaging:
+        to_return[f"jaccard_{avg}"] = jaccard_score(y_true, y_pred, average=avg, zero_division=0)
+    
+    references = np.array(y_true)
+    predictions = np.array(y_pred)
+    to_return["matthews_macro"] = np.mean([
+        matthews_corrcoef(y_true=references[:, i], y_pred=predictions[:, i], sample_weight=None)
+        for i in range(references.shape[1])
+    ])
+    to_return["matthews_micro"] = matthews_corrcoef(y_true=references.ravel(), y_pred=predictions.ravel())
+    
+    for avg in averaging:
+        try:
+            to_return[f"roc_auc_{avg}"] = roc_auc_score(y_true, y_pred, average=avg)
+        except ValueError:
+            to_return[f"roc_auc_{avg}"] = 0.0
+    
+    for k in [1, 3, 5, 10]:
+        to_return[f"ndcg_{k}"] = ndcg_score(y_true, y_pred, k=k)
+
+    return to_return
+
+
+def calculate_parent_metrics_add(y_true, predictions, data_path):
+    """
+    Get the parent metrics by adding the parents artificially
+    (the Thesaurus Concept labels are mapped to their parent Micro Thesaurus and Domain labels).
+
+    :param y_true: True labels.
+    :param predictions: Predictions.
+    :param data_path: Path to the data.
+    :return: Metrics.
+    """
+    # Convert the predictions to binary
+    probs = sigmoid(Tensor(predictions))
+    y_pred = (probs.detach().numpy() >= 0.5).astype(int)
+
+    with open(os.path.join(data_path, 'mlb_encoder.pickle'), 'rb') as f:
+        mlb_encoder = pickle.load(f)
+        
+        labels_true = mlb_encoder.inverse_transform(y_true)
+        labels_pred = mlb_encoder.inverse_transform(y_pred)
+
+        # load the file "mt_position" from the config folder and the mapping
+        with open("./config/mt_labels_position.json", "r") as fp:
+            mt_position = json.load(fp)
+        with open("./config/mt_labels.json", "r") as fp:
+            mt_mapping = json.load(fp)
+        # initialize a dictionary for both true and pred labels
+        mt_labels_true = [{k:0 for k in mt_position} for _ in range(len(labels_true))]
+        mt_labels_pred = [{k:0 for k in mt_position} for _ in range(len(labels_pred))]
+        # if the label is present, set the value to 1
+        for i in range(len(labels_true)):
+            for label in labels_true[i]:
+                if label in mt_mapping:
+                    mt_labels_true[i][mt_mapping[label]] = 1
+        for i in range(len(labels_pred)):
+            for label in labels_pred[i]:
+                if label in mt_mapping:
+                    mt_labels_pred[i][mt_mapping[label]] = 1
+        # load the file "do_labels_position" from the config folder
+        with open("./config/domain_labels_position.json", "r") as fp:
+            do_position = json.load(fp)
+        # initialize a dictionary for both true and pred labels
+        do_labels_true = [{k:0 for k in do_position} for _ in range(len(labels_true))]
+        do_labels_pred = [{k:0 for k in do_position} for _ in range(len(labels_pred))]
+        # if the label is present, set the value to 1
+        for i in range(len(mt_labels_true)):
+            for label in mt_labels_true[i]:
+                if mt_labels_true[i][label] == 1:
+                    do_labels_true[i][label[:2]] = 1
+        for i in range(len(mt_labels_pred)):
+            for label in mt_labels_pred[i]:
+                if mt_labels_pred[i][label] == 1:
+                    do_labels_pred[i][label[:2]] = 1
+
+        # convert the dictionaries to lists with only the values
+        mt_labels_true = [list(mt_labels_true[i].values()) for i in range(len(mt_labels_true))]
+        mt_labels_pred = [list(mt_labels_pred[i].values()) for i in range(len(mt_labels_pred))]
+        do_labels_true = [list(do_labels_true[i].values()) for i in range(len(do_labels_true))]
+        do_labels_pred = [list(do_labels_pred[i].values()) for i in range(len(do_labels_pred))]
+        
+    metrics = {}
+
+    for label_type in ["mt", "do"]:
+        labels_true = mt_labels_true if label_type == "mt" else do_labels_true
+        labels_pred = mt_labels_pred if label_type == "mt" else do_labels_pred
+
+        new_metrics = calculate_metrics(labels_true, labels_pred, probs, {})
+
+        keys = [key + f"_{label_type}" for key in list(new_metrics)]
+
+        to_update = {key: new_metrics[key.replace(f"_{label_type}", "")] for key in keys}
+        
+        metrics.update(to_update)
+
+    return metrics
+
+
+def calculate_parent_metrics_builtin(y_true, predictions, data_path):
+    """
+    Get the parent metrics if the parents are already present in the training data
+    (only if the data for the model was processed with the --add_mt_do flag).
+
+    :param y_true: True labels.
+    :param predictions: Predictions.
+    :param data_path: Path to the data.
+    :return: Metrics.
+    """
+    # Convert the predictions to binary
+    probs = sigmoid(Tensor(predictions))
+    y_pred = (probs.detach().numpy() >= 0.5).astype(int)
+
+    with open(os.path.join(data_path, 'mlb_encoder.pickle'), 'rb') as f:
+        mlb_encoder = pickle.load(f)
+        
+        labels_true = mlb_encoder.inverse_transform(y_true)
+        labels_pred = mlb_encoder.inverse_transform(y_pred)
+
+        # load the file "mt_position" from the config folder and the mapping
+        with open("./config/mt_labels_position.json", "r") as fp:
+            mt_position = json.load(fp)
+        # load the file "do_labels_position" from the config folder
+        with open("./config/do_labels_position.json", "r") as fp:
+            do_position = json.load(fp)
+
+        # initialize a dictionary for both true and pred labels
+        mt_labels_true = {k:0 for k in mt_position}
+        mt_labels_pred = {k:0 for k in mt_position}
+        do_labels_true = {k:0 for k in do_position}
+        do_labels_pred = {k:0 for k in do_position}
+
+        # if the label is present, set the value to 1
+        for label in labels_true:
+            if "_mt" in label:
+                mt_labels_true[label.split("_mt")[0]] = 1
+            elif "_do" in label:
+                do_labels_true[label.split("_do")[0]] = 1
+        for label in labels_pred:
+            if "_mt" in label:
+                mt_labels_pred[label.split("_mt")[0]] = 1
+            elif "_do" in label:
+                do_labels_pred[label.split("_do")[0]] = 1
+        
+    metrics = {}
+
+    for label_type in ["mt", "do"]:
+        labels_true = mt_labels_true if label_type == "mt" else do_labels_true
+        labels_pred = mt_labels_pred if label_type == "mt" else do_labels_pred
+
+        metrics.update(calculate_metrics(labels_true, labels_pred, probs, {}))
+
+        for metric in metrics:
+            metrics[f"{metric}_{label_type}"] = metrics.pop(metric)
+    
+    return metrics
+
 def data_collator_tensordataset(features):
     """
     Custom data collator for datasets of the type TensorDataset.
@@ -260,6 +416,7 @@ def data_collator_tensordataset(features):
     batch['labels'] = stack([f[2] for f in features])
     
     return batch
+
 
 def load_data(data_path, lang, data_type, split):
     """
