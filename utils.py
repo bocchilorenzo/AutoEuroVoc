@@ -346,10 +346,8 @@ def calculate_parent_metrics_add(y_true, predictions, data_path):
         # It needs to be redone here because the labels are in simple arrays while in 'calculate_metrics' it uses tensors
         labels_true = mt_labels_true_manual if label_type == "mt" else do_labels_true_manual
         labels_pred = mt_labels_pred_manual if label_type == "mt" else do_labels_pred_manual
-        pk_scores = [np.intersect1d(true, pred).shape[0] / (pred.shape[0] + 1e-10) for true, pred in
-                        zip(labels_true, labels_pred)]
-        rk_scores = [np.intersect1d(true, pred).shape[0] / (true.shape[0] + 1e-10) for true, pred in
-                        zip(labels_true, labels_pred)]
+        pk_scores = [np.intersect1d(true, pred).shape[0] / (len(pred) + 1e-10) for true, pred in zip(labels_true, labels_pred)]
+        rk_scores = [np.intersect1d(true, pred).shape[0] / (len(true) + 1e-10) for true, pred in zip(labels_true, labels_pred)]
         f1k_scores = [2 * recall * precision / (recall + precision + 1e-10) for recall, precision in zip(pk_scores, rk_scores)]
         new_metrics["f1"] = sum(f1k_scores) / len(f1k_scores)
 
