@@ -234,7 +234,7 @@ def calculate_metrics(y_true, y_pred, probs, to_return):
     rk_scores = [np.intersect1d(true, pred).shape[0] / (true.shape[0] + 1e-10) for true, pred in
                     zip(true_labels, pred_labels)]
     f1k_scores = [2 * recall * precision / (recall + precision + 1e-10) for recall, precision in zip(pk_scores, rk_scores)]
-    to_return["f1_pyeurovoc"] = sum(f1k_scores) / len(f1k_scores)
+    to_return["f1"] = sum(f1k_scores) / len(f1k_scores)
     for avg in averaging:
         to_return[f"f1_{avg}"] = f1_score(y_true, y_pred, average=avg, zero_division=0)
     
@@ -322,6 +322,12 @@ def calculate_parent_metrics_add(y_true, predictions, data_path):
                 if mt_labels_pred[i][label] == 1:
                     do_labels_pred[i][label[:2]] = 1
 
+        # create the lists to use to calculate the F1 score
+        mt_labels_true_manual = initialize_manual_labels(mt_labels_true)
+        mt_labels_pred_manual = initialize_manual_labels(mt_labels_pred)
+        do_labels_true_manual = initialize_manual_labels(do_labels_true)
+        do_labels_pred_manual = initialize_manual_labels(do_labels_pred)
+        
         # convert the dictionaries to lists with only the values
         mt_labels_true = [list(mt_labels_true[i].values()) for i in range(len(mt_labels_true))]
         mt_labels_pred = [list(mt_labels_pred[i].values()) for i in range(len(mt_labels_pred))]
@@ -336,6 +342,17 @@ def calculate_parent_metrics_add(y_true, predictions, data_path):
 
         new_metrics = calculate_metrics(labels_true, labels_pred, probs, {})
 
+        # Calculate the F1 score
+        # It needs to be redone here because the labels are in simple arrays while in 'calculate_metrics' it uses tensors
+        labels_true = mt_labels_true_manual if label_type == "mt" else do_labels_true_manual
+        labels_pred = mt_labels_pred_manual if label_type == "mt" else do_labels_pred_manual
+        pk_scores = [np.intersect1d(true, pred).shape[0] / (pred.shape[0] + 1e-10) for true, pred in
+                        zip(labels_true, labels_pred)]
+        rk_scores = [np.intersect1d(true, pred).shape[0] / (true.shape[0] + 1e-10) for true, pred in
+                        zip(labels_true, labels_pred)]
+        f1k_scores = [2 * recall * precision / (recall + precision + 1e-10) for recall, precision in zip(pk_scores, rk_scores)]
+        new_metrics["f1"] = sum(f1k_scores) / len(f1k_scores)
+
         keys = [key + f"_{label_type}" for key in list(new_metrics)]
 
         to_update = {key: new_metrics[key.replace(f"_{label_type}", "")] for key in keys}
@@ -343,6 +360,33 @@ def calculate_parent_metrics_add(y_true, predictions, data_path):
         metrics.update(to_update)
 
     return metrics
+
+def initialize_manual_labels(label_array):
+    """
+    Initialize the arrays of labels to be to calculate the F1 for the parent labels.
+
+    :param label_array: Array with the labels in the format:
+        [
+            {
+                "4356": 1,
+                "4357": 0,
+                ...
+            },
+            ...
+        ]
+    :return: Array of labels in the format:
+        [
+            ["4356", "4357", ...],
+            ...
+        ]
+    """
+    to_return = []
+    for labels in label_array:
+        to_return.append([])
+        for label in labels:
+            if labels[label] == 1:
+                to_return[-1].append(label)
+    return to_return
 
 
 def calculate_parent_metrics_builtin(y_true, predictions, data_path):
@@ -373,22 +417,24 @@ def calculate_parent_metrics_builtin(y_true, predictions, data_path):
             do_position = json.load(fp)
 
         # initialize a dictionary for both true and pred labels
-        mt_labels_true = {k:0 for k in mt_position}
-        mt_labels_pred = {k:0 for k in mt_position}
-        do_labels_true = {k:0 for k in do_position}
-        do_labels_pred = {k:0 for k in do_position}
+        mt_labels_true = [{k:0 for k in mt_position} for _ in range(len(labels_true))]
+        mt_labels_pred = [{k:0 for k in mt_position} for _ in range(len(labels_pred))]
+        do_labels_true = [{k:0 for k in do_position} for _ in range(len(labels_true))]
+        do_labels_pred = [{k:0 for k in do_position} for _ in range(len(labels_pred))]
 
         # if the label is present, set the value to 1
-        for label in labels_true:
-            if "_mt" in label:
-                mt_labels_true[label.split("_mt")[0]] = 1
-            elif "_do" in label:
-                do_labels_true[label.split("_do")[0]] = 1
-        for label in labels_pred:
-            if "_mt" in label:
-                mt_labels_pred[label.split("_mt")[0]] = 1
-            elif "_do" in label:
-                do_labels_pred[label.split("_do")[0]] = 1
+        for i in range(len(labels_true)):
+            for label in labels_true[i]:
+                if "_mt" in label:
+                    mt_labels_true[i][label.split("_mt")[0]] = 1
+                elif "_do" in label:
+                    do_labels_true[i][label.split("_do")[0]] = 1
+        for i in range(len(labels_pred)):
+            for label in labels_pred[i]:
+                if "_mt" in label:
+                    mt_labels_pred[i][label.split("_mt")[0]] = 1
+                elif "_do" in label:
+                    do_labels_pred[i][label.split("_do")[0]] = 1
         
     metrics = {}
 
@@ -396,10 +442,13 @@ def calculate_parent_metrics_builtin(y_true, predictions, data_path):
         labels_true = mt_labels_true if label_type == "mt" else do_labels_true
         labels_pred = mt_labels_pred if label_type == "mt" else do_labels_pred
 
-        metrics.update(calculate_metrics(labels_true, labels_pred, probs, {}))
+        new_metrics = calculate_metrics(labels_true, labels_pred, probs, {})
 
-        for metric in metrics:
-            metrics[f"{metric}_{label_type}"] = metrics.pop(metric)
+        keys = [key + f"_{label_type}" for key in list(new_metrics)]
+
+        to_update = {key: new_metrics[key.replace(f"_{label_type}", "")] for key in keys}
+        
+        metrics.update(to_update)
     
     return metrics
 

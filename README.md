@@ -1,6 +1,6 @@
 # AutoEuroVoc
 
-Collection of Python scripts to create a document multilabel classifier with the corresponding EuroVoc labels. The scripts require at least Python 3.6.
+Collection of Python scripts to create a document multilabel classifier with the corresponding EuroVoc labels. The scripts require at least Python 3.8.
 
 ## How it works
 
