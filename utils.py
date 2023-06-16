@@ -162,10 +162,8 @@ def sklearn_metrics_full(y_true, predictions, data_path, threshold=0.5, get_conf
 
     to_return = calculate_metrics(y_true, y_pred, probs, to_return)
 
-    if parent_handling == "add":
-        to_return.update(calculate_parent_metrics_add(y_true, predictions, data_path))
-    elif parent_handling == "builtin":
-        to_return.update(calculate_parent_metrics_builtin(y_true, predictions, data_path))
+    if parent_handling == "add" or parent_handling == "builtin":
+        to_return.update(calculate_parent_metrics(y_true, predictions, data_path, parent_handling))
 
     return to_return, class_report, conf_matrix
 
@@ -269,10 +267,9 @@ def calculate_metrics(y_true, y_pred, probs, to_return):
     return to_return
 
 
-def calculate_parent_metrics_add(y_true, predictions, data_path):
+def calculate_parent_metrics(y_true, predictions, data_path, mode):
     """
-    Get the parent metrics by adding the parents artificially
-    (the Thesaurus Concept labels are mapped to their parent Micro Thesaurus and Domain labels).
+    Get the parent label metrics.
 
     :param y_true: True labels.
     :param predictions: Predictions.
@@ -283,56 +280,23 @@ def calculate_parent_metrics_add(y_true, predictions, data_path):
     probs = sigmoid(Tensor(predictions))
     y_pred = (probs.detach().numpy() >= 0.5).astype(int)
 
-    with open(os.path.join(data_path, 'mlb_encoder.pickle'), 'rb') as f:
-        mlb_encoder = pickle.load(f)
-        
-        labels_true = mlb_encoder.inverse_transform(y_true)
-        labels_pred = mlb_encoder.inverse_transform(y_pred)
+    # Get the labels
+    if mode == "add":
+        mt_labels_true, mt_labels_pred, do_labels_true, do_labels_pred = add_setup(data_path, y_true, y_pred)
+    else:
+        mt_labels_true, mt_labels_pred, do_labels_true, do_labels_pred = builtin_setup(data_path, y_true, y_pred)
 
-        # load the file "mt_position" from the config folder and the mapping
-        with open("./config/mt_labels_position.json", "r") as fp:
-            mt_position = json.load(fp)
-        with open("./config/mt_labels.json", "r") as fp:
-            mt_mapping = json.load(fp)
-        # initialize a dictionary for both true and pred labels
-        mt_labels_true = [{k:0 for k in mt_position} for _ in range(len(labels_true))]
-        mt_labels_pred = [{k:0 for k in mt_position} for _ in range(len(labels_pred))]
-        # if the label is present, set the value to 1
-        for i in range(len(labels_true)):
-            for label in labels_true[i]:
-                if label in mt_mapping:
-                    mt_labels_true[i][mt_mapping[label]] = 1
-        for i in range(len(labels_pred)):
-            for label in labels_pred[i]:
-                if label in mt_mapping:
-                    mt_labels_pred[i][mt_mapping[label]] = 1
-        # load the file "do_labels_position" from the config folder
-        with open("./config/domain_labels_position.json", "r") as fp:
-            do_position = json.load(fp)
-        # initialize a dictionary for both true and pred labels
-        do_labels_true = [{k:0 for k in do_position} for _ in range(len(labels_true))]
-        do_labels_pred = [{k:0 for k in do_position} for _ in range(len(labels_pred))]
-        # if the label is present, set the value to 1
-        for i in range(len(mt_labels_true)):
-            for label in mt_labels_true[i]:
-                if mt_labels_true[i][label] == 1:
-                    do_labels_true[i][label[:2]] = 1
-        for i in range(len(mt_labels_pred)):
-            for label in mt_labels_pred[i]:
-                if mt_labels_pred[i][label] == 1:
-                    do_labels_pred[i][label[:2]] = 1
-
-        # create the lists to use to calculate the F1 score
-        mt_labels_true_manual = initialize_manual_labels(mt_labels_true)
-        mt_labels_pred_manual = initialize_manual_labels(mt_labels_pred)
-        do_labels_true_manual = initialize_manual_labels(do_labels_true)
-        do_labels_pred_manual = initialize_manual_labels(do_labels_pred)
-        
-        # convert the dictionaries to lists with only the values
-        mt_labels_true = [list(mt_labels_true[i].values()) for i in range(len(mt_labels_true))]
-        mt_labels_pred = [list(mt_labels_pred[i].values()) for i in range(len(mt_labels_pred))]
-        do_labels_true = [list(do_labels_true[i].values()) for i in range(len(do_labels_true))]
-        do_labels_pred = [list(do_labels_pred[i].values()) for i in range(len(do_labels_pred))]
+    # create the lists to use to calculate the F1 score
+    mt_labels_true_manual = initialize_manual_labels(mt_labels_true)
+    mt_labels_pred_manual = initialize_manual_labels(mt_labels_pred)
+    do_labels_true_manual = initialize_manual_labels(do_labels_true)
+    do_labels_pred_manual = initialize_manual_labels(do_labels_pred)
+    
+    # convert the dictionaries to lists with only the values
+    mt_labels_true = [list(mt_labels_true[i].values()) for i in range(len(mt_labels_true))]
+    mt_labels_pred = [list(mt_labels_pred[i].values()) for i in range(len(mt_labels_pred))]
+    do_labels_true = [list(do_labels_true[i].values()) for i in range(len(do_labels_true))]
+    do_labels_pred = [list(do_labels_pred[i].values()) for i in range(len(do_labels_pred))]
         
     metrics = {}
 
@@ -386,21 +350,16 @@ def initialize_manual_labels(label_array):
                 to_return[-1].append(label)
     return to_return
 
-
-def calculate_parent_metrics_builtin(y_true, predictions, data_path):
+def add_setup(data_path, y_true, y_pred):
     """
-    Get the parent metrics if the parents are already present in the training data
-    (only if the data for the model was processed with the --add_mt_do flag).
+    Initialize the parent labels by adding the parents artificially
+    (the Thesaurus Concept labels are mapped to their parent Micro Thesaurus and Domain labels).
 
-    :param y_true: True labels.
-    :param predictions: Predictions.
     :param data_path: Path to the data.
-    :return: Metrics.
+    :param y_true: True labels.
+    :param y_pred: Predictions.
+    :return: Labels.
     """
-    # Convert the predictions to binary
-    probs = sigmoid(Tensor(predictions))
-    y_pred = (probs.detach().numpy() >= 0.5).astype(int)
-
     with open(os.path.join(data_path, 'mlb_encoder.pickle'), 'rb') as f:
         mlb_encoder = pickle.load(f)
         
@@ -410,8 +369,59 @@ def calculate_parent_metrics_builtin(y_true, predictions, data_path):
         # load the file "mt_position" from the config folder and the mapping
         with open("./config/mt_labels_position.json", "r") as fp:
             mt_position = json.load(fp)
+        with open("./config/mt_labels.json", "r") as fp:
+            mt_mapping = json.load(fp)
+        # initialize a dictionary for both true and pred labels
+        mt_labels_true = [{k:0 for k in mt_position} for _ in range(len(labels_true))]
+        mt_labels_pred = [{k:0 for k in mt_position} for _ in range(len(labels_pred))]
+        # if the label is present, set the value to 1
+        for i in range(len(labels_true)):
+            for label in labels_true[i]:
+                if label in mt_mapping:
+                    mt_labels_true[i][mt_mapping[label]] = 1
+        for i in range(len(labels_pred)):
+            for label in labels_pred[i]:
+                if label in mt_mapping:
+                    mt_labels_pred[i][mt_mapping[label]] = 1
         # load the file "do_labels_position" from the config folder
-        with open("./config/do_labels_position.json", "r") as fp:
+        with open("./config/domain_labels_position.json", "r") as fp:
+            do_position = json.load(fp)
+        # initialize a dictionary for both true and pred labels
+        do_labels_true = [{k:0 for k in do_position} for _ in range(len(labels_true))]
+        do_labels_pred = [{k:0 for k in do_position} for _ in range(len(labels_pred))]
+        # if the label is present, set the value to 1
+        for i in range(len(mt_labels_true)):
+            for label in mt_labels_true[i]:
+                if mt_labels_true[i][label] == 1:
+                    do_labels_true[i][label[:2]] = 1
+        for i in range(len(mt_labels_pred)):
+            for label in mt_labels_pred[i]:
+                if mt_labels_pred[i][label] == 1:
+                    do_labels_pred[i][label[:2]] = 1
+    
+    return mt_labels_true, mt_labels_pred, do_labels_true, do_labels_pred
+
+def builtin_setup(data_path, y_true, y_pred):
+    """
+    Initialize the parent labels if the parents are already present in the training data
+    (only if the data for the model was processed with the --add_mt_do flag).
+
+    :param data_path: Path to the data.
+    :param y_true: True labels.
+    :param y_pred: Predicted labels.
+    :return: Labels.
+    """
+    with open(os.path.join(data_path, 'mlb_encoder.pickle'), 'rb') as f:
+        mlb_encoder = pickle.load(f)
+        
+        labels_true = mlb_encoder.inverse_transform(y_true)
+        labels_pred = mlb_encoder.inverse_transform(y_pred)
+
+        # load the file "mt_position" from the config folder and the mapping
+        with open("./config/mt_labels_position.json", "r") as fp:
+            mt_position = json.load(fp)
+        # load the file "domain_labels_position" from the config folder
+        with open("./config/domain_labels_position.json", "r") as fp:
             do_position = json.load(fp)
 
         # initialize a dictionary for both true and pred labels
@@ -433,22 +443,8 @@ def calculate_parent_metrics_builtin(y_true, predictions, data_path):
                     mt_labels_pred[i][label.split("_mt")[0]] = 1
                 elif "_do" in label:
                     do_labels_pred[i][label.split("_do")[0]] = 1
-        
-    metrics = {}
-
-    for label_type in ["mt", "do"]:
-        labels_true = mt_labels_true if label_type == "mt" else do_labels_true
-        labels_pred = mt_labels_pred if label_type == "mt" else do_labels_pred
-
-        new_metrics = calculate_metrics(labels_true, labels_pred, probs, {})
-
-        keys = [key + f"_{label_type}" for key in list(new_metrics)]
-
-        to_update = {key: new_metrics[key.replace(f"_{label_type}", "")] for key in keys}
-        
-        metrics.update(to_update)
     
-    return metrics
+    return mt_labels_true, mt_labels_pred, do_labels_true, do_labels_pred
 
 def data_collator_tensordataset(features):
     """
