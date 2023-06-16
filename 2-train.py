@@ -163,6 +163,7 @@ def start_train():
                 per_device_eval_batch_size=args.batch_size,
                 weight_decay=0.01,
                 report_to="all",
+                fp16=args.fp16,
             )
 
             # Create the trainer. It uses a custom data collator to convert the
@@ -213,6 +214,7 @@ if __name__ == "__main__":
     parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for the prediction confidence.")
     parser.add_argument("--custom_loss", action="store_true", default=False, help="Enable the custom loss (focal loss by default).")
     parser.add_argument("--weighted_loss", action="store_true", default=False, help="Enable the weighted bcewithlogits loss. Only works if the custom loss is enabled.")
+    parser.add_argument("--fp16", action="store_true", default=False, help="Enable fp16 mixed precision training.")
     parser.add_argument("--eval_metric", type=str, default="f1_micro", choices=[
         'loss', 'f1_micro', 'f1_macro', 'f1_weighted', 'f1_samples',
         'jaccard_micro', 'jaccard_macro', 'jaccard_weighted', 'jaccard_samples',
