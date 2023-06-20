@@ -25,7 +25,7 @@ if threshold is not None:
 
 # Load the label mappings if the prediction type is label
 if pred_type == "label":
-    with open(f"./config/label_mappings/{language}.json", "r", encoding="utf-8") as f:
+    with open(f"./config/label_mappings_tc/{language}.json", "r", encoding="utf-8") as f:
         labels = json.load(f)
 
 # Load the model with its tokenizer and config

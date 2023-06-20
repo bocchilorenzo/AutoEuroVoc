@@ -25,4 +25,4 @@ This script updates the labels of the model. It is particularly useful when you 
 - labels: the path to the labels' JSON file
 
 ## 04. Create mappings
-Useful if you want to use the inference script with textual labels instead of label ids. The script is 04-create_mappings.py and it takes no arguments. It will create a 'label_mappings' folder in the config directory and it will create the mappings in the various languages available.
+Useful if you want to use the inference script with textual labels instead of label ids. The script is 04-create_mappings.py and it takes no arguments. It will create a 'label_mappings' folder in the config directory for each of the label types and it will create the mappings in the various languages available.
