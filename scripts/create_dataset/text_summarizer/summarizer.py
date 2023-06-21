@@ -221,7 +221,7 @@ class Summarizer:
         tf = TfidfVectorizer(ngram_range=self.ngram_range)
         tfidf = tf.fit_transform(sentences).toarray().sum(0)
         tfidf = np.divide(tfidf, tfidf.max())
-        words = tf.get_feature_names()
+        words = tf.get_feature_names_out()
 
         relevant_terms = [
             words[i]
