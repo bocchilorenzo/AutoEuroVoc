@@ -1,4 +1,4 @@
-from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, hamming_loss, ndcg_score, precision_score, recall_score, jaccard_score, matthews_corrcoef, multilabel_confusion_matrix
+from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report, hamming_loss, ndcg_score, precision_score, recall_score, jaccard_score, matthews_corrcoef, multilabel_confusion_matrix, zero_one_loss
 from torch import sigmoid, Tensor, stack, from_numpy
 import os
 import numpy as np
@@ -263,6 +263,10 @@ def calculate_metrics(y_true, y_pred, probs, to_return):
     
     for k in [1, 3, 5, 10]:
         to_return[f"ndcg_{k}"] = ndcg_score(y_true, y_pred, k=k)
+
+    to_return["zero_one_loss"] = int(zero_one_loss(y_true, y_pred, normalize=False))
+
+    to_return["total_samples"] = len(y_true)
 
     return to_return
 
