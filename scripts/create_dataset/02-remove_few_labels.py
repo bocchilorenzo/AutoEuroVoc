@@ -57,10 +57,10 @@ def remove_few_labels(args):
             json.dump(data, f, ensure_ascii=False)
     
     print(f"Removed {len(deleted_docs)}/{tot_docs} documents ({len(deleted_docs)/tot_docs*100:.2f}%).")
-    print("Documents removed:")
+    """ print("Documents removed:")
     print("Year\tDoc")
     for doc, year in deleted_docs:
-        print(f"{year}\t{doc}")
+        print(f"{year}\t{doc}") """
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Remove labels associated with few documents from the dataset.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
