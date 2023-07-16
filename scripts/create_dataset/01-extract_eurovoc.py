@@ -1,6 +1,7 @@
 import json
 from os import listdir, path, makedirs
 import gzip
+from tqdm import tqdm
 import argparse
 
 def extract_documents(args):
@@ -12,7 +13,7 @@ def extract_documents(args):
 
     print(f"Working on data from {path_docs}")
     
-    for year in years:
+    for year in tqdm(years):
         with gzip.open(path.join(path_docs, year), "rt", encoding="utf-8") as f:
             data = json.load(f)
             to_del = set()

@@ -8,6 +8,8 @@ from transformers import Trainer
 from torch import nn, Tensor, nonzero, sort
 import pickle
 import json
+import warnings
+warnings.filterwarnings("ignore", category=RuntimeWarning)
     
 class CustomTrainer(Trainer):
     """
