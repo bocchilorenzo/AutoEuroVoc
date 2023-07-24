@@ -9,6 +9,7 @@ from nltk import download
 download("punkt")
 download("stopwords")
 from nltk.corpus import stopwords
+from stop_words import get_stop_words
 from nltk.tokenize import TreebankWordTokenizer
 from nltk.data import load
 import ufal.udpipe
@@ -16,6 +17,8 @@ from yaml import safe_load
 from re import sub
 from os import path
 from copy import deepcopy
+from requests import post
+from time import sleep
 
 
 # https://github.com/ufal/udpipe/tree/master/bindings/python/examples
@@ -80,6 +83,26 @@ class Model:
         output = [output_format.writeSentence(sentence).strip() for sentence in sentences]
         
         return output
+    
+class UDPipe2:
+    def __init__(self, language):
+        with open(path.join(path.dirname(path.abspath(__file__)), "models2.yml"), "r") as f:
+            model_configs = safe_load(f)
+        self.model = model_configs[language]
+    
+    def tokenize(self, text):
+        url = f"http://lindat.mff.cuni.cz/services/udpipe/api/process"
+        response = post(url, data={
+            "model": self.model,
+            "tokenizer": True,
+            "output": "horizontal",
+            "data": text
+        })
+        sleep(0.5)
+        if response.status_code == 200:
+            return response.json()["result"].split("\n")
+        else:
+            raise Exception("Cannot tokenize text")
 
 
 class LookupTable:
@@ -170,7 +193,7 @@ class Summarizer:
         :param tfidf_threshold: threshold to filter relevant terms
         :param language: language of the text to summarize
         :param ngram_range: range of ngrams to use
-        :param tokenizer: tokenizer to use (udpipe or nltk)
+        :param tokenizer: tokenizer to use (udpipe1, udpipe2 or nltk)
         """
         self.lookup_table = LookupTable(model_path, model_type, compressed)
         self.tfidf_threshold = tfidf_threshold
@@ -179,13 +202,16 @@ class Summarizer:
         self.ngram_range = ngram_range
         self.model_type = model_type
         self.compressed = compressed
-        if tokenizer == "udpipe":
-            self.tokenizer_mode = "udpipe"
-            with open("models.yml", "r") as f:
+        if tokenizer == "udpipe1":
+            self.tokenizer_mode = "udpipe1"
+            with open(path.join(path.dirname(path.abspath(__file__)), "models.yml"), "r") as f:
                 self.model_configs = safe_load(f)
             self.sent_tokenizer = Model(
                 path.join("./models", self.model_configs[language] + ".udpipe")
             )
+        elif tokenizer == "udpipe2":
+            self.tokenizer_mode = "udpipe2"
+            self.sent_tokenizer = UDPipe2(language)
         elif tokenizer == "nltk":
             self.tokenizer_mode = "nltk"
             self.sent_tokenizer = load(f"tokenizers/punkt/{language}.pickle")
@@ -328,7 +354,10 @@ class Summarizer:
         :return: sentences without stopwords
         """
         to_return = []
-        stop = set(stopwords.words(self.language))
+        try:
+            stop = set(stopwords.words(self.language))
+        except:
+            stop = set(get_stop_words(self.language))
         for sentence in data:
             stopped = ""
             sentence = sentence.lower().split(" ")
@@ -347,7 +376,7 @@ class Summarizer:
         :return: sentences of the text
         """
         sentences = self.sent_tokenizer.tokenize(text)
-        if self.tokenizer_mode == "udpipe":
+        if self.tokenizer_mode == "udpipe1":
             parsed = self.sent_tokenizer.write_list(sentences)
         else:
             parsed = sentences

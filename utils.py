@@ -22,17 +22,17 @@ class CustomTrainer(Trainer):
         self.focal_alpha = 0.25
         self.focal_gamma = 2
 
-    def prepare_labels(self, data_path, language, split, device):
+    def prepare_labels(self, data_path, language, seed, device):
         """
         Set the mlb encoder and the weights for the BCE loss.
 
         :param data_path: Path to the data.
         :param language: Language of the data.
-        :param split: Split of the data.
+        :param seed: Seed of the data.
         :param device: Device to use.
         """
         # Load the weights
-        with open(os.path.join(data_path, language, f"split_{split}", "train_labs_count.json"), "r") as weights_fp:
+        with open(os.path.join(data_path, language, f"split_{seed}", "train_labs_count.json"), "r") as weights_fp:
             data = json.load(weights_fp)
             weights = []
             """ # Approach with max weight in case of 0
@@ -467,14 +467,14 @@ def data_collator_tensordataset(features):
     return batch
 
 
-def load_data(data_path, lang, data_type, split):
+def load_data(data_path, lang, data_type, seed):
     """
     Load the data from the specified directory.
 
     :param data_path: Path to the data.
     :param lang: Language.
     :param data_type: Type of data to load (train or test).
-    :param split: Split to load.
+    :param seed: Seed to load.
     :return: List of train, dev and test loaders.
     """
     to_return = []
@@ -482,18 +482,18 @@ def load_data(data_path, lang, data_type, split):
     for directory in os.listdir(data_path):
         if lang == directory:
             if data_type == "train":
-                print("\nLoading training and dev data from directory {}...".format(os.path.join(data_path, directory, f"split_{split}")))
+                print("\nLoading training and dev data from directory {}...".format(os.path.join(data_path, directory, f"split_{seed}")))
 
                 # The data is stored in numpy arrays, so it has to be converted to tensors.
-                train_X = from_numpy(np.load(os.path.join(data_path, directory, f"split_{split}", "train_X.npy")))
-                train_mask = from_numpy(np.load(os.path.join(data_path, directory, f"split_{split}", "train_mask.npy")))
-                train_y = from_numpy(np.load(os.path.join(data_path, directory, f"split_{split}", "train_y.npy"))).float()
+                train_X = from_numpy(np.load(os.path.join(data_path, directory, f"split_{seed}", "train_X.npy")))
+                train_mask = from_numpy(np.load(os.path.join(data_path, directory, f"split_{seed}", "train_mask.npy")))
+                train_y = from_numpy(np.load(os.path.join(data_path, directory, f"split_{seed}", "train_y.npy"))).float()
 
                 assert train_X.shape[0] == train_mask.shape[0] == train_y.shape[0]
 
-                dev_X = from_numpy(np.load(os.path.join(data_path, directory, f"split_{split}", "dev_X.npy")))
-                dev_mask = from_numpy(np.load(os.path.join(data_path, directory, f"split_{split}", "dev_mask.npy")))
-                dev_y = from_numpy(np.load(os.path.join(data_path, directory, f"split_{split}", "dev_y.npy"))).float()
+                dev_X = from_numpy(np.load(os.path.join(data_path, directory, f"split_{seed}", "dev_X.npy")))
+                dev_mask = from_numpy(np.load(os.path.join(data_path, directory, f"split_{seed}", "dev_mask.npy")))
+                dev_y = from_numpy(np.load(os.path.join(data_path, directory, f"split_{seed}", "dev_y.npy"))).float()
 
                 assert dev_X.shape[0] == dev_mask.shape[0] == dev_y.shape[0]
 
@@ -503,10 +503,10 @@ def load_data(data_path, lang, data_type, split):
                 to_return = [dataset_train, dataset_dev, train_y.shape[1]]
 
             elif data_type == "test":
-                print("\nLoading test data from directory {}...".format(os.path.join(data_path, directory, f"split_{split}")))
-                test_X = from_numpy(np.load(os.path.join(data_path, directory, f"split_{split}", "test_X.npy")))
-                test_mask = from_numpy(np.load(os.path.join(data_path, directory, f"split_{split}", "test_mask.npy")))
-                test_y = from_numpy(np.load(os.path.join(data_path, directory, f"split_{split}", "test_y.npy"))).float()
+                print("\nLoading test data from directory {}...".format(os.path.join(data_path, directory, f"split_{seed}")))
+                test_X = from_numpy(np.load(os.path.join(data_path, directory, f"split_{seed}", "test_X.npy")))
+                test_mask = from_numpy(np.load(os.path.join(data_path, directory, f"split_{seed}", "test_mask.npy")))
+                test_y = from_numpy(np.load(os.path.join(data_path, directory, f"split_{seed}", "test_y.npy"))).float()
 
                 assert test_X.shape[0] == test_mask.shape[0] == test_y.shape[0]
 

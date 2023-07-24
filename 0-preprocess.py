@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 from skmultilearn.model_selection import IterativeStratification
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.utils import shuffle
-from torch import tensor, ones_like, device, multiprocessing
+from torch import tensor, ones_like
 from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 import json
@@ -43,7 +43,7 @@ def save_splits(X, masks, y, directory, mlb):
 
     print(f"{datetime.now().replace(microsecond=0)} - Saving splits...")
 
-    for i, seed in enumerate(seeds):
+    for seed in seeds:
         np.random.seed(int(seed))
         stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[0.2, 0.8])
         train_idx, aux_idx = next(stratifier.split(X, y))
@@ -59,26 +59,26 @@ def save_splits(X, masks, y, directory, mlb):
         assert dev_X.shape[0] == dev_mask.shape[0] == dev_y.shape[0]
         assert test_X.shape[0] == test_mask.shape[0] == test_y.shape[0]
 
-        to_print = f"{i} - Splitted the documents in - train: {train_X.shape[0]}, dev: {dev_X.shape[0]}, test: {test_X.shape[0]}"
+        to_print = f"{seed} - Splitted the documents in - train: {train_X.shape[0]}, dev: {dev_X.shape[0]}, test: {test_X.shape[0]}"
         print(to_print)
 
         with open(os.path.join(args.data_path, directory, "stats.txt"), "a+") as f:
             f.write(to_print + "\n")
 
-        if not os.path.exists(os.path.join(args.data_path, directory, f"split_{i}")):
-            os.makedirs(os.path.join(args.data_path, directory, f"split_{i}"))
+        if not os.path.exists(os.path.join(args.data_path, directory, f"split_{seed}")):
+            os.makedirs(os.path.join(args.data_path, directory, f"split_{seed}"))
 
-        np.save(os.path.join(args.data_path, directory, f"split_{i}", "train_X.npy"), train_X)
-        np.save(os.path.join(args.data_path, directory, f"split_{i}", "train_mask.npy"), train_mask)
-        np.save(os.path.join(args.data_path, directory, f"split_{i}", "train_y.npy"), train_y)
+        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "train_X.npy"), train_X)
+        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "train_mask.npy"), train_mask)
+        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "train_y.npy"), train_y)
 
-        np.save(os.path.join(args.data_path, directory, f"split_{i}", "dev_X.npy"), dev_X)
-        np.save(os.path.join(args.data_path, directory, f"split_{i}", "dev_mask.npy"), dev_mask)
-        np.save(os.path.join(args.data_path, directory, f"split_{i}", "dev_y.npy"), dev_y)
+        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "dev_X.npy"), dev_X)
+        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "dev_mask.npy"), dev_mask)
+        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "dev_y.npy"), dev_y)
 
-        np.save(os.path.join(args.data_path, directory, f"split_{i}", "test_X.npy"), test_X)
-        np.save(os.path.join(args.data_path, directory, f"split_{i}", "test_mask.npy"), test_mask)
-        np.save(os.path.join(args.data_path, directory, f"split_{i}", "test_y.npy"), test_y)
+        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "test_X.npy"), test_X)
+        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "test_mask.npy"), test_mask)
+        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "test_y.npy"), test_y)
 
         sample_labs = mlb.inverse_transform(train_y)
         labs_count = {"total_samples": len(sample_labs), "labels": {label: 0 for label in mlb.classes_}}
@@ -87,7 +87,7 @@ def save_splits(X, masks, y, directory, mlb):
             for label in sample:
                 labs_count["labels"][label] += 1
         
-        with open(os.path.join(args.data_path, directory, f"split_{i}", "train_labs_count.json"), "w") as fp:
+        with open(os.path.join(args.data_path, directory, f"split_{seed}", "train_labs_count.json"), "w") as fp:
             json.dump(labs_count, fp)
 
         X, masks, y = shuffle(X, masks, y, random_state=int(seed))
@@ -315,8 +315,7 @@ def preprocess_data():
         config = yaml.safe_load(fp)
     
     global seeds
-    with open("config/seeds.txt", "r") as fp:
-        seeds = fp.read().splitlines()
+    seeds = args.seeds.split(",")
 
     print(f"Tokenizers config:\n{format(config)}")
     
@@ -342,6 +341,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the data to process.")
     parser.add_argument("--years", type=str, default="all", help="Year range to be processed, separated by a comma (e.g. 2010,2020 will get all the years between 2010 and 2020 included). Write 'all' to process all the years.")
     parser.add_argument("--langs", type=str, default="it", help="Languages to be processed, separated by a comme (e.g. en,it). Write 'all' to process all the languages.")
+    parser.add_argument("--seeds", type=str, default="110", help="Seeds to be used for the randomization and creating the data splits, separated by a comma (e.g. 110,221).")
     parser.add_argument("--max_length", type=int, default=512, help="Maximum number of words of the text to be processed.")
     parser.add_argument("--limit_tokenizer", action="store_true", default=False, help="Limit the tokenizer length to the maximum number of words. This will remove the statistics for the documents length.")
     parser.add_argument("--add_title", action="store_true", default=False, help="Add the title to the text.")

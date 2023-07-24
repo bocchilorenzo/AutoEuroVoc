@@ -1,7 +1,7 @@
 import argparse
 from transformers import AutoModelForSequenceClassification, TrainingArguments, EvalPrediction, AutoTokenizer, set_seed, Trainer
 import yaml
-from os import path, makedirs
+from os import path, makedirs, listdir
 from utils import sklearn_metrics_single, sklearn_metrics_full, data_collator_tensordataset, load_data, CustomTrainer
 import json
 
@@ -79,8 +79,10 @@ def start_train():
         config = yaml.safe_load(config_fp)
 
     # Load the seeds for the different splits
-    with open("config/seeds.txt", "r") as seeds_fp:
-        seeds = seeds_fp.readlines()
+    if args.seeds != "all":
+        seeds = args.seeds.split(",")
+    else:
+        seeds = [name.split("_")[1] for name in listdir(path.join(args.data_path, args.lang)) if "split" in name]
 
     print(f"Working on device: {args.device}")
 
@@ -90,122 +92,117 @@ def start_train():
     if not path.exists(args.models_path):
         makedirs(args.models_path)
 
-    # Train the models for all languages
-    for lang in config.keys():
-        # If a specifiy language is given, skip the others
-        if args.lang != "all" and args.lang != lang:
-            continue
+    global language
+    language = args.lang
 
-        global language
-        language = lang
+    print(f"\nTraining for language: '{args.lang}' using: '{config[args.lang]}'...")
 
-        print(f"\nTraining for language: '{lang}' using: '{config[lang]}'...")
+    # Train the models for all splits
+    for seed in seeds:
+        global current_split
+        current_split = seed
 
-        # Train the models for all splits
-        for split_idx in range(len(seeds)):
-            global current_split
-            current_split = split_idx
+        # Load the data
+        train_set, dev_set, num_classes = load_data(args.data_path, args.lang, "train", seed)
 
-            # Load the data
-            train_set, dev_set, num_classes = load_data(args.data_path, lang, "train", split_idx)
+        # Create the directory for the models of the current language
+        makedirs(path.join(args.models_path, args.lang,
+                    seed), exist_ok=True)
 
-            # Create the directory for the models of the current language
-            makedirs(path.join(args.models_path, lang,
-                     str(split_idx)), exist_ok=True)
+        # Create the directory for the classification report of the current language
+        if args.save_class_report:
+            makedirs(path.join(args.models_path, args.lang, str(
+                seed), "train_reports"), exist_ok=True)
 
-            # Create the directory for the classification report of the current language
-            if args.save_class_report:
-                makedirs(path.join(args.models_path, lang, str(
-                    split_idx), "train_reports"), exist_ok=True)
+        set_seed(int(seed))
 
-            set_seed(int(seeds[split_idx]))
+        tokenizer = AutoTokenizer.from_pretrained(config[args.lang])
 
-            tokenizer = AutoTokenizer.from_pretrained(config[lang])
+        with open(path.join(args.data_path, language, f"split_{seed}", "train_labs_count.json"), "r") as weights_fp:
+            data = json.load(weights_fp)
+            labels = list(data["labels"].keys())
 
-            with open(path.join(args.data_path, language, f"split_{split_idx}", "train_labs_count.json"), "r") as weights_fp:
-                data = json.load(weights_fp)
-                labels = list(data["labels"].keys())
+        model = AutoModelForSequenceClassification.from_pretrained(
+            config[args.lang],
+            problem_type="multi_label_classification",
+            num_labels=num_classes,
+            id2label={id_label:label for id_label, label in enumerate(labels)},
+            label2id={label:id_label for id_label, label in enumerate(labels)},
+            trust_remote_code=args.trust_remote,
+        )
 
-            model = AutoModelForSequenceClassification.from_pretrained(
-                config[lang],
-                problem_type="multi_label_classification",
-                num_labels=num_classes,
-                id2label={id_label:label for id_label, label in enumerate(labels)},
-                label2id={label:id_label for id_label, label in enumerate(labels)},
-                trust_remote_code=args.trust_remote,
+        # If the device specified via the arguments is "cpu", avoid using CUDA
+        # even if it is available
+        no_cuda = True if args.device == "cpu" else False
+
+        # Create the training arguments.
+        train_args = TrainingArguments(
+            path.join(args.models_path, args.lang, seed),
+            evaluation_strategy="epoch",
+            learning_rate=args.learning_rate,
+            max_grad_norm=args.max_grad_norm,
+            num_train_epochs=args.epochs,
+            lr_scheduler_type="linear",
+            warmup_steps=len(train_set),
+            logging_strategy="epoch",
+            logging_dir=path.join(
+                args.models_path, args.lang, seed, 'logs'),
+            save_strategy="epoch",
+            no_cuda=no_cuda,
+            seed=int(seed),
+            load_best_model_at_end=True,
+            save_total_limit=1,
+            metric_for_best_model=args.eval_metric,
+            optim="adamw_torch",
+            optim_args="correct_bias=True",
+            per_device_train_batch_size=args.batch_size,
+            per_device_eval_batch_size=args.batch_size,
+            weight_decay=0.01,
+            report_to="all",
+            fp16=args.fp16,
+        )
+
+        # Create the trainer. It uses a custom data collator to convert the
+        # dataset to a compatible dataset.
+
+        if args.custom_loss:
+            trainer = CustomTrainer(
+                model,
+                train_args,
+                train_dataset=train_set,
+                eval_dataset=dev_set,
+                tokenizer=tokenizer,
+                data_collator=data_collator_tensordataset,
+                compute_metrics=compute_metrics
             )
 
-            # If the device specified via the arguments is "cpu", avoid using CUDA
-            # even if it is available
-            no_cuda = True if args.device == "cpu" else False
+            trainer.prepare_labels(
+                args.data_path, args.lang, seed, args.device)
 
-            # Create the training arguments.
-            train_args = TrainingArguments(
-                path.join(args.models_path, lang, str(split_idx)),
-                evaluation_strategy="epoch",
-                learning_rate=args.learning_rate,
-                max_grad_norm=args.max_grad_norm,
-                num_train_epochs=args.epochs,
-                lr_scheduler_type="linear",
-                warmup_steps=len(train_set),
-                logging_strategy="epoch",
-                logging_dir=path.join(
-                    args.models_path, lang, str(split_idx), 'logs'),
-                save_strategy="epoch",
-                no_cuda=no_cuda,
-                seed=int(seeds[split_idx]),
-                load_best_model_at_end=True,
-                save_total_limit=1,
-                metric_for_best_model=args.eval_metric,
-                optim="adamw_torch",
-                optim_args="correct_bias=True",
-                per_device_train_batch_size=args.batch_size,
-                per_device_eval_batch_size=args.batch_size,
-                weight_decay=0.01,
-                report_to="all",
-                fp16=args.fp16,
+            if args.weighted_loss:
+                trainer.set_weighted_loss()
+        else:
+            trainer = Trainer(
+                model,
+                train_args,
+                train_dataset=train_set,
+                eval_dataset=dev_set,
+                tokenizer=tokenizer,
+                data_collator=data_collator_tensordataset,
+                compute_metrics=compute_metrics
             )
+        trainer.train()
 
-            # Create the trainer. It uses a custom data collator to convert the
-            # dataset to a compatible dataset.
-
-            if args.custom_loss:
-                trainer = CustomTrainer(
-                    model,
-                    train_args,
-                    train_dataset=train_set,
-                    eval_dataset=dev_set,
-                    tokenizer=tokenizer,
-                    data_collator=data_collator_tensordataset,
-                    compute_metrics=compute_metrics
-                )
-
-                trainer.prepare_labels(
-                    args.data_path, lang, split_idx, args.device)
-
-                if args.weighted_loss:
-                    trainer.set_weighted_loss()
-            else:
-                trainer = Trainer(
-                    model,
-                    train_args,
-                    train_dataset=train_set,
-                    eval_dataset=dev_set,
-                    tokenizer=tokenizer,
-                    data_collator=data_collator_tensordataset,
-                    compute_metrics=compute_metrics
-                )
-            trainer.train()
-
-            # print(f"Best checkpoint path: {trainer.state.best_model_checkpoint}")
+        # print(f"Best checkpoint path: {trainer.state.best_model_checkpoint}")
 
 
 if __name__ == "__main__":
     # fmt: off
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--lang", type=str, default="all", help="Language to train the model on.")
+    parser.add_argument("--lang", type=str, default="it", help="Language to train the model on.")
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
+    parser.add_argument("--seeds", type=str, default="all", help="Seeds to be used to load the data splits, separated by a comma (e.g. 110,221). Use 'all' to use all the data splits.")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to train on.")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs to train the model.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")

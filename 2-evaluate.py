@@ -72,81 +72,75 @@ def start_evaluate():
     """
     Launch the evaluation of the models.
     """
-    # Load the configuration for the models of all languages
-    with open("config/models.yml", "r") as config_fp:
-        config = yaml.safe_load(config_fp)
-
     print(f"Working on device: {args.device}")
 
     global language
     global current_model
-
-    # Evaluate the models for all languages
-    for lang in config.keys():
-        # If a specifiy language is given, skip the others
-        if args.lang != "all" and args.lang != lang:
-            continue
         
-        language = lang
+    language = args.lang
 
-        # Load the seeds for the different splits
-        with open("config/seeds.txt", "r") as seeds_fp:
-            seeds = seeds_fp.readlines()
+    # Load the seeds for the different splits
+    if args.seeds != "all":
+        seeds = args.seeds.split(",")
+    else:
+        seeds = [name.split("_")[1] for name in listdir(path.join(args.data_path, args.lang)) if "split" in name]
 
-        for split_idx in range(len(seeds)):
-            if not path.exists(
-                path.join(args.models_path, lang, str(split_idx))
-            ):
-                break
+    for seed in seeds:
+        if not path.exists(
+            path.join(args.models_path, args.lang, seed)
+        ):
+            print(f"Models for seed {seed} not found. Skipping...")
+            continue
 
-            # Load the data
-            test_set = load_data(args.data_path, lang, "test", split_idx)
+        # Load the data
+        test_set = load_data(args.data_path, args.lang, "test", seed)
 
-            # Get the last checkpoint
-            last_checkpoint = max(
-                [
-                    int(f.split("-")[1])
-                    for f in listdir(path.join(args.models_path, lang, str(split_idx)))
-                    if f.startswith("checkpoint-") and path.isdir(path.join(args.models_path, lang, str(split_idx), f))
-                ]
-            )
-            last_checkpoint = path.join(args.models_path, lang, str(split_idx), f"checkpoint-{last_checkpoint}")
+        # Get the last checkpoint
+        last_checkpoint = max(
+            [
+                int(f.split("-")[1])
+                for f in listdir(path.join(args.models_path, args.lang, seed))
+                if f.startswith("checkpoint-") and path.isdir(path.join(args.models_path, args.lang, seed, f))
+            ]
+        )
+        last_checkpoint = path.join(args.models_path, args.lang, seed, f"checkpoint-{last_checkpoint}")
 
-            # Create the directory for the evaluation output
-            makedirs(path.join(last_checkpoint, "evaluation"), exist_ok=True)
-            current_model = last_checkpoint
+        # Create the directory for the evaluation output
+        makedirs(path.join(last_checkpoint, "evaluation"), exist_ok=True)
+        current_model = last_checkpoint
 
-            # Load model and tokenizer
-            print(f"\nEvaluating model: '{last_checkpoint}'...")
-            set_seed(int(seeds[split_idx]))
-            tokenizer = AutoTokenizer.from_pretrained(last_checkpoint)
-            model = AutoModelForSequenceClassification.from_pretrained(last_checkpoint, trust_remote_code=args.trust_remote)
-            no_cuda = True if args.device == "cpu" else False
+        # Load model and tokenizer
+        print(f"\nEvaluating model: '{last_checkpoint}'...")
+        set_seed(int(seed))
+        tokenizer = AutoTokenizer.from_pretrained(last_checkpoint)
+        model = AutoModelForSequenceClassification.from_pretrained(last_checkpoint, trust_remote_code=args.trust_remote)
+        no_cuda = True if args.device == "cpu" else False
 
-            # Setup the evaluation
-            trainer = Trainer(
-                args=TrainingArguments(
-                    path.join(last_checkpoint, "evaluation"),
-                    per_device_eval_batch_size=args.batch_size,
-                    seed = int(seeds[split_idx]),
-                    no_cuda = no_cuda,
-                    report_to="all",
-                ),
-                model=model,
-                tokenizer=tokenizer,
-                data_collator=data_collator_tensordataset,
-                compute_metrics=compute_metrics
-            )
+        # Setup the evaluation
+        trainer = Trainer(
+            args=TrainingArguments(
+                path.join(last_checkpoint, "evaluation"),
+                per_device_eval_batch_size=args.batch_size,
+                seed = int(seed),
+                no_cuda = no_cuda,
+                report_to="all",
+            ),
+            model=model,
+            tokenizer=tokenizer,
+            data_collator=data_collator_tensordataset,
+            compute_metrics=compute_metrics
+        )
 
-            # Evaluate the model
-            model.eval()
-            trainer.predict(test_set)
+        # Evaluate the model
+        model.eval()
+        trainer.predict(test_set)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--lang", type=str, default="all", help="Language to evaluate the model on.")
+    parser.add_argument("--lang", type=str, default="it", help="Language to evaluate the model on.")
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
+    parser.add_argument("--seeds", type=str, default="all", help="Seeds to be used to load the data splits, separated by a comma (e.g. 110,221). Use 'all' to use all the data splits.")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size of the dataset.")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to evaluate on.")
     parser.add_argument("--parents", type=str, default="none", choices=["none", "add", "builtin"], help="How to handle the parents of the labels. Add them 'artificially' with the 'add' option, or use the 'builtin' option if the labels were added during training.")

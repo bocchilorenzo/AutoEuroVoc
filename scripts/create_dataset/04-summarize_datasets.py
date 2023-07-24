@@ -17,7 +17,7 @@ def check_models():
         remove(path.join("./", "udpipe.zip"))
 
 def summarize_data(args):
-    if args.tokenizer == "udpipe":
+    if args.tokenizer == "udpipe1":
         check_models()
 
     print(f"Loading {args.model_type} model...")
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("--summ_lang", type=str, default="italian", help="Language of the summarizer model")
     parser.add_argument("--model_path", type=str, default="./cc.it.300.bin", help="Path to the folder containing the summarizer model")
     parser.add_argument("--compressed", action="store_true", default=False, help="Whether the model is compressed or not")
-    parser.add_argument("--tokenizer", type=str, default="nltk", choices=["udpipe", "nltk"], help="Tokenizer to use for the summarizer")
+    parser.add_argument("--tokenizer", type=str, default="nltk", choices=["udpipe1", "udpipe2", "nltk"], help="Tokenizer to use for the summarizer")
     parser.add_argument("--model_type", type=str, default="fasttext", choices=["fasttext", "word2vec"], help="Type of the summarizer model")
     parser.add_argument("--years", type=str, default="2010-2022", help="Range of years to summarize (extremes included)")
 
