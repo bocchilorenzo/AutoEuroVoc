@@ -293,10 +293,9 @@ def calculate_parent_metrics(y_true, predictions, data_path, mode):
         mt_labels_true, mt_labels_pred, do_labels_true, do_labels_pred = builtin_setup(data_path, y_true, y_pred)
 
     # create the lists to use to calculate the F1 score
-    mt_labels_true_manual = initialize_manual_labels(mt_labels_true)
-    mt_labels_pred_manual = initialize_manual_labels(mt_labels_pred)
-    do_labels_true_manual = initialize_manual_labels(do_labels_true)
-    do_labels_pred_manual = initialize_manual_labels(do_labels_pred)
+    true_labels = [nonzero(Tensor(labels), as_tuple=True)[0] for labels in y_true]
+    (mt_labels_true_manual, mt_labels_pred_manual,
+     do_labels_true_manual, do_labels_pred_manual) = initialize_manual_labels(true_labels, probs)
     
     # convert the dictionaries to lists with only the values
     mt_labels_true = [list(mt_labels_true[i].values()) for i in range(len(mt_labels_true))]
@@ -329,32 +328,43 @@ def calculate_parent_metrics(y_true, predictions, data_path, mode):
 
     return metrics
 
-def initialize_manual_labels(label_array):
+def initialize_manual_labels(true_labels, probs):
     """
     Initialize the arrays of labels to be to calculate the F1 for the parent labels.
 
-    :param label_array: Array with the labels in the format:
+    :param true_labels: Array with the true labels in the format:
         [
-            {
-                "4356": 1,
-                "4357": 0,
-                ...
-            },
+            ["3254", "4567", "2728", ...],
             ...
         ]
-    :return: Array of labels in the format:
+    :param probs: Predicted probabilities.
+    :return: Arrays with the true and predicted MT and DO labels in the format:
         [
-            ["4356", "4357", ...],
+            ["3254", "4567", "2728", ...],
             ...
         ]
     """
-    to_return = []
-    for labels in label_array:
-        to_return.append([])
-        for label in labels:
-            if labels[label] == 1:
-                to_return[-1].append(label)
-    return to_return
+    with open("./config/mt_labels.json", "r") as fp:
+        mt_mapping = json.load(fp)
+
+    pred_labels = sort(probs, descending=True)[1][:, :5]
+
+    true_labels_mt = []
+    true_labels_do = []
+    for labels in true_labels:
+        # Every label should be present in the mapping, only the label "eurovoc",
+        # identified by id "3712", is not present and has no MT mapping.
+        # See https://op.europa.eu/en/web/eu-vocabularies/concept/-/resource?uri=http://eurovoc.europa.eu/3712
+        true_labels_mt.append([mt_mapping[str(label.item())] for label in labels if str(label.item()) in mt_mapping])
+        true_labels_do.append([mt_mapping[str(label.item())][:2] for label in labels if str(label.item()) in mt_mapping])
+    
+    pred_labels_mt = []
+    pred_labels_do = []
+    for labels in pred_labels:
+        pred_labels_mt.append([mt_mapping[str(label.item())] for label in labels if str(label.item()) in mt_mapping])
+        pred_labels_do.append([mt_mapping[str(label.item())][:2] for label in labels[:4] if str(label.item()) in mt_mapping])
+
+    return true_labels_mt, pred_labels_mt, true_labels_do, pred_labels_do
 
 def add_setup(data_path, y_true, y_pred):
     """

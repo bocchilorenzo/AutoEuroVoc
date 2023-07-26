@@ -52,7 +52,7 @@ NOTE: You can skip step 1 if you already have UDpipe 1 and the models installed 
 - summ_lang: the language of the summarizer model. Default is "italian".
 - model_path: the path to the summarizer model. Default is "./cc.it.300.bin".
 - compressed: whether the model is compressed or not. Default is False.
-- tokenizer: the tokenizer to use for the summarizer. It can be "nltk" or "udpipe". Default is "nltk".
+- tokenizer: the tokenizer to use for the summarizer. It can be "nltk", "udpipe1" or "udpipe2". Default is "nltk", "udpipe1" uses local udpipe1 models, while udpipe2 calls the REST API at http://lindat.mff.cuni.cz/services/udpipe/api/process.
 - model_type: the type of the summarizer model. It can be "fasttext" or "word2vec". Default is "fasttext".
 - years: the range of years to summarize (extremes included). Default is "2010-2022".
 
