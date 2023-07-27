@@ -20,7 +20,6 @@ from copy import deepcopy
 from requests import post
 from time import sleep
 import spacy
-spacy.prefer_gpu()
 
 
 # https://github.com/ufal/udpipe/tree/master/bindings/python/examples
@@ -219,7 +218,7 @@ class Summarizer:
             self.sent_tokenizer = load(f"tokenizers/punkt/{language}.pickle")
         elif tokenizer == "spacy":
             self.tokenizer_mode = "spacy"
-            self.nlp = spacy.load("en_core_web_trf")
+            self.nlp = spacy.load("en_core_web_lg")
         else:
             raise ValueError("Invalid tokenizer")
 
@@ -380,12 +379,15 @@ class Summarizer:
         :param text: text to split
         :return: sentences of the text
         """
-        sentences = self.sent_tokenizer.tokenize(text)
+        if self.tokenizer_mode != "spacy":
+            sentences = self.sent_tokenizer.tokenize(text)
         if self.tokenizer_mode == "udpipe1":
             parsed = self.sent_tokenizer.write_list(sentences)
         elif self.tokenizer_mode == "spacy":
             doc = self.nlp(text)
-            parsed = doc.sents
+            parsed = []
+            for sent in doc.sents:
+                parsed.append(sent.text)
         else:
             parsed = sentences
 
