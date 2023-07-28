@@ -20,6 +20,7 @@ from copy import deepcopy
 from requests import post
 from time import sleep
 import spacy
+spacy.prefer_gpu()
 
 
 # https://github.com/ufal/udpipe/tree/master/bindings/python/examples
@@ -186,6 +187,7 @@ class Summarizer:
         language="italian",
         ngram_range=(1, 1),
         tokenizer="nltk",
+        max_length=1000000,
     ):
         """
         :param model_path: path to the compressed fasttext model
@@ -195,6 +197,7 @@ class Summarizer:
         :param language: language of the text to summarize
         :param ngram_range: range of ngrams to use
         :param tokenizer: tokenizer to use (udpipe1, udpipe2 or nltk)
+        :param max_length: maximum length to pass to spacy's nlp.pipe
         """
         self.lookup_table = LookupTable(model_path, model_type, compressed)
         self.tfidf_threshold = tfidf_threshold
@@ -219,6 +222,7 @@ class Summarizer:
         elif tokenizer == "spacy":
             self.tokenizer_mode = "spacy"
             self.nlp = spacy.load("en_core_web_lg")
+            self.nlp.max_length = max_length
         else:
             raise ValueError("Invalid tokenizer")
 

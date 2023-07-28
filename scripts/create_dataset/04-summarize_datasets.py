@@ -26,7 +26,8 @@ def summarize_data(args):
         model_path=args.model_path,
         compressed=args.compressed,
         tokenizer=args.tokenizer,
-        model_type=args.model_type
+        model_type=args.model_type,
+        max_length=args.max_length,
     )
 
     path_initial = args.data_path
@@ -70,6 +71,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_path", type=str, default="./cc.it.300.bin", help="Path to the folder containing the summarizer model")
     parser.add_argument("--compressed", action="store_true", default=False, help="Whether the model is compressed or not")
     parser.add_argument("--tokenizer", type=str, default="nltk", choices=["udpipe1", "udpipe2", "nltk", "spacy"], help="Tokenizer to use for the summarizer. NOTE: right now spacy is only available for english texts")
+    parser.add_argument("--max_length", type=int, default=1000000, help="Maximum length to pass to spacy (leave it to the default value if you don't have issues with memory)")
     parser.add_argument("--model_type", type=str, default="fasttext", choices=["fasttext", "word2vec"], help="Type of the summarizer model")
     parser.add_argument("--years", type=str, default="2010-2022", help="Range of years to summarize (extremes included)")
 
