@@ -315,8 +315,11 @@ def calculate_parent_metrics(y_true, predictions, data_path, mode):
         # It needs to be redone here because the labels are in simple arrays while in 'calculate_metrics' it uses tensors
         labels_true = mt_labels_true_manual if label_type == "mt" else do_labels_true_manual
         labels_pred = mt_labels_pred_manual if label_type == "mt" else do_labels_pred_manual
-        pk_scores = [np.intersect1d(true, pred).shape[0] / (len(pred) + 1e-10) for true, pred in zip(labels_true, labels_pred)]
-        rk_scores = [np.intersect1d(true, pred).shape[0] / (len(true) + 1e-10) for true, pred in zip(labels_true, labels_pred)]
+        pk_scores = []
+        rk_scores = []
+        for true, pred in zip(labels_true, labels_pred):
+            pk_scores.append(np.intersect1d(true, pred).shape[0] / (len(pred) + 1e-10))
+            rk_scores.append(np.intersect1d(true, pred).shape[0] / (len(true) + 1e-10))
         f1k_scores = [2 * recall * precision / (recall + precision + 1e-10) for recall, precision in zip(pk_scores, rk_scores)]
         new_metrics["f1"] = sum(f1k_scores) / len(f1k_scores)
 
@@ -355,14 +358,26 @@ def initialize_manual_labels(true_labels, probs):
         # Every label should be present in the mapping, only the label "eurovoc",
         # identified by id "3712", is not present and has no MT mapping.
         # See https://op.europa.eu/en/web/eu-vocabularies/concept/-/resource?uri=http://eurovoc.europa.eu/3712
-        true_labels_mt.append([mt_mapping[str(label.item())] for label in labels if str(label.item()) in mt_mapping])
-        true_labels_do.append([mt_mapping[str(label.item())][:2] for label in labels if str(label.item()) in mt_mapping])
+        to_append_mt = []
+        to_append_do = []
+        for label in labels:
+            if str(label.item()) in mt_mapping:
+                to_append_mt.append(mt_mapping[str(label.item())])
+                to_append_do.append(mt_mapping[str(label.item())][:2])
+        true_labels_mt.append(to_append_mt)
+        true_labels_do.append(to_append_do)
     
     pred_labels_mt = []
     pred_labels_do = []
     for labels in pred_labels:
-        pred_labels_mt.append([mt_mapping[str(label.item())] for label in labels if str(label.item()) in mt_mapping])
-        pred_labels_do.append([mt_mapping[str(label.item())][:2] for label in labels[:4] if str(label.item()) in mt_mapping])
+        to_append_mt = []
+        to_append_do = []
+        for label in labels:
+            if str(label.item()) in mt_mapping:
+                to_append_mt.append(mt_mapping[str(label.item())])
+                to_append_do.append(mt_mapping[str(label.item())][:2])
+        pred_labels_mt.append(to_append_mt)
+        pred_labels_do.append(to_append_do)
 
     return true_labels_mt, pred_labels_mt, true_labels_do, pred_labels_do
 
