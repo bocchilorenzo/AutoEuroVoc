@@ -1,5 +1,3 @@
-# based on pyeurovoc's preprocess.py
-
 import argparse
 import yaml
 import os
@@ -45,12 +43,14 @@ def save_splits(X, masks, y, directory, mlb):
 
     for seed in seeds:
         np.random.seed(int(seed))
+        # Create two splits:test+dev and train
         stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[0.2, 0.8])
         train_idx, aux_idx = next(stratifier.split(X, y))
         train_X, train_mask, train_y = X[train_idx, :], masks[train_idx, :], y[train_idx, :]
 
         assert train_X.shape[0] == train_mask.shape[0] == train_y.shape[0]
 
+        # Create two splits: test and dev
         stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[0.5, 0.5])
         dev_idx, test_idx = next(stratifier.split(X[aux_idx, :], y[aux_idx, :]))
         dev_X, dev_mask, dev_y = X[dev_idx, :], masks[dev_idx, :], y[dev_idx, :]
@@ -68,6 +68,7 @@ def save_splits(X, masks, y, directory, mlb):
         if not os.path.exists(os.path.join(args.data_path, directory, f"split_{seed}")):
             os.makedirs(os.path.join(args.data_path, directory, f"split_{seed}"))
 
+        # Save the splits
         np.save(os.path.join(args.data_path, directory, f"split_{seed}", "train_X.npy"), train_X)
         np.save(os.path.join(args.data_path, directory, f"split_{seed}", "train_mask.npy"), train_mask)
         np.save(os.path.join(args.data_path, directory, f"split_{seed}", "train_y.npy"), train_y)
@@ -80,6 +81,7 @@ def save_splits(X, masks, y, directory, mlb):
         np.save(os.path.join(args.data_path, directory, f"split_{seed}", "test_mask.npy"), test_mask)
         np.save(os.path.join(args.data_path, directory, f"split_{seed}", "test_y.npy"), test_y)
 
+        # Save the counts of each label, useful for weighted loss
         sample_labs = mlb.inverse_transform(train_y)
         labs_count = {"total_samples": len(sample_labs), "labels": {label: 0 for label in mlb.classes_}}
 
@@ -90,6 +92,7 @@ def save_splits(X, masks, y, directory, mlb):
         with open(os.path.join(args.data_path, directory, f"split_{seed}", "train_labs_count.json"), "w") as fp:
             json.dump(labs_count, fp)
 
+        # Shuffle the splits using the random seed for reproducibility
         X, masks, y = shuffle(X, masks, y, random_state=int(seed))
 
 def process_year(params):
@@ -120,95 +123,113 @@ def process_year(params):
     with gzip.open(path, "rt", encoding="utf-8") as file:
         data = json.load(file)
         j = 1
-        for doc in data:
-            if not args.multi_core:
-                print(f"{datetime.now().replace(microsecond=0)} - {j}/{len(data)}", end="\r")
-            j += 1
-            text = ""
-            if args.add_mt_do:
-                # Add MT and DO labels
-                labels = set(data[doc]["eurovoc_classifiers"]) if "eurovoc_classifiers" in data[doc] else set(data[doc]["eurovoc"])
-                to_add = set()
-                for label in labels:
-                    if label in mt_labels:
-                        if mt_labels[label] in microthesaurus:
-                            to_add.add(mt_labels[label] + "_mt")
-                        if mt_labels[label][:2] in domain:
-                            to_add.add(mt_labels[label][:2] + "_do")
-                
-                labels = list(labels.union(to_add))
-            else:
-                labels = data[doc]["eurovoc_classifiers"] if "eurovoc_classifiers" in data[doc] else data[doc]["eurovoc"]
+        if args.get_doc_ids:
+            # Only get the document ids, without processing the text. Useful to know which documents go in which split.
+            for doc in data:
+                if not args.multi_core:
+                    print(f"{datetime.now().replace(microsecond=0)} - {j}/{len(data)}", end="\r")
+                j += 1
+                labels = data[doc]["eurovoc_classifiers"]
 
-            if args.title_only:
-                text = data[doc]["title"]
-            else:
-                if args.add_title:
-                    text = data[doc]["title"] + " "
-                
-                if args.summarized:
-                    full_text = data[doc]["full_text"]
-                    phrase_importance = []
-                    i = 0
+                inputs_ids = tensor(tokenizer.encode(doc, **tokenizer_kwargs))
 
-                    for imp in data[doc]["importance"]:
-                        if not math.isnan(imp):
-                            phrase_importance.append((i, imp))
-                        i += 1
+                list_inputs.append(inputs_ids)
+                list_labels.append(labels)
+                list_masks.append(ones_like(inputs_ids))
+        else:
+            # Process the text
+            for doc in data:
+                if not args.multi_core:
+                    print(f"{datetime.now().replace(microsecond=0)} - {j}/{len(data)}", end="\r")
+                j += 1
+                text = ""
+                if args.add_mt_do:
+                    # Add MT and DO labels
+                    labels = set(data[doc]["eurovoc_classifiers"]) if "eurovoc_classifiers" in data[doc] else set(data[doc]["eurovoc"])
+                    to_add = set()
+                    for label in labels:
+                        if label in mt_labels:
+                            if mt_labels[label] in microthesaurus:
+                                to_add.add(mt_labels[label] + "_mt")
+                            if mt_labels[label][:2] in domain:
+                                to_add.add(mt_labels[label][:2] + "_do")
                     
-                    phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
-
-                    # First, we get the most important phrases until the maximum length is reached.
-                    if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
-                        backup = deepcopy(phrase_importance)
-                        while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
-                            phrase_importance = phrase_importance[:-1]
-                        phrase_importance.append(backup[len(phrase_importance)])
-
-                    # Then, we sort the phrases by their position in the document.
-                    phrase_importance = sorted(phrase_importance, key=lambda x: x[0])
-                    text += " ".join([full_text[phrase[0]] for phrase in phrase_importance])
+                    labels = list(labels.union(to_add))
                 else:
-                    text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
-            
-            text = re.sub(r'\r', '', text)
-            
-            # The following replacement is not necessary in the other datasets because it was already done.
-            if "senato" in path:
-                text = re.sub(r'\n', ' ', text)
-                text = re.sub(" +", " ", text).strip()
-            
-            if args.limit_tokenizer:
-                inputs_ids = tensor(tokenizer.encode(text, **tokenizer_kwargs))
-            else:
-                inputs_ids = tensor(tokenizer.encode(text))
+                    labels = data[doc]["eurovoc_classifiers"] if "eurovoc_classifiers" in data[doc] else data[doc]["eurovoc"]
 
-            if not args.limit_tokenizer:
-                document_ct += 1
+                if args.title_only:
+                    text = data[doc]["title"]
+                else:
+                    if args.add_title:
+                        text = data[doc]["title"] + " "
+                    
+                    if args.summarized:
+                        full_text = data[doc]["full_text"]
+                        phrase_importance = []
+                        i = 0
 
-                # We count the number of unknown tokens and the total number of tokens.
-                for token in inputs_ids[1: -1]:
-                    if token == tokenizer.unk_token_id:
-                        unk_ct += 1
+                        for imp in data[doc]["importance"]:
+                            if not math.isnan(imp):
+                                phrase_importance.append((i, imp))
+                            i += 1
+                        
+                        phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
 
-                    tokens_ct += 1
+                        # First, we get the most important phrases until the maximum length is reached.
+                        if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
+                            backup = deepcopy(phrase_importance)
+                            while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
+                                phrase_importance = phrase_importance[:-1]
+                            phrase_importance.append(backup[len(phrase_importance)])
 
-                # If the input is over the maximum length, we cut it and increment the count of big documents.
-                if len(inputs_ids) > args.max_length:
-                    big_document_ct += 1
-                    inputs_ids = inputs_ids[:args.max_length]
+                        # Then, we sort the phrases by their position in the document.
+                        phrase_importance = sorted(phrase_importance, key=lambda x: x[0])
+                        text += " ".join([full_text[phrase[0]] for phrase in phrase_importance])
+                    else:
+                        text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
+                
+                text = re.sub(r'\r', '', text)
+                
+                # The following replacement is not necessary in the other datasets because it was already done.
+                if "senato" in path:
+                    text = re.sub(r'\n', ' ', text)
+                    text = re.sub(" +", " ", text).strip()
+                
+                if args.limit_tokenizer:
+                    # Here, the text is cut to the maximum length before being tokenized,
+                    # potentially speeding up the process for long documents.
+                    inputs_ids = tensor(tokenizer.encode(text, **tokenizer_kwargs))
+                else:
+                    inputs_ids = tensor(tokenizer.encode(text))
 
-            list_inputs.append(inputs_ids)
-            list_labels.append(labels)
-            list_masks.append(ones_like(inputs_ids))
+                if not args.limit_tokenizer:
+                    document_ct += 1
+
+                    # We count the number of unknown tokens and the total number of tokens.
+                    for token in inputs_ids[1: -1]:
+                        if token == tokenizer.unk_token_id:
+                            unk_ct += 1
+
+                        tokens_ct += 1
+
+                    # If the input is over the maximum length, we cut it and increment the count of big documents.
+                    if len(inputs_ids) > args.max_length:
+                        big_document_ct += 1
+                        inputs_ids = inputs_ids[:args.max_length]
+
+                list_inputs.append(inputs_ids)
+                list_labels.append(labels)
+                list_masks.append(ones_like(inputs_ids))
     
-    del data, inputs_ids, labels, text, tokenizer
+    del data, inputs_ids, labels, tokenizer
 
+    # Just some stats to print and save later.
     if len(list_inputs) == 0:
         print("No documents found in the dataset.")
         to_print = ""
     else:
-        if not args.limit_tokenizer:
+        if not args.limit_tokenizer and not args.get_doc_ids:
             if not args.multi_core:
                 to_print = f"Dataset stats: - total documents: {document_ct}, big documents: {big_document_ct}, ratio: {big_document_ct / document_ct * 100:.4f}%"
             else:
@@ -297,6 +318,7 @@ def process_datasets(data_path, directory, tokenizer_name):
     X = pad_sequence(list_inputs, batch_first=True, padding_value=tokenizer.pad_token_id).numpy()
     masks = pad_sequence(list_masks, batch_first=True, padding_value=0).numpy()
 
+    # Save the MultiLabelBinarizer.
     with open(os.path.join(args.data_path, directory, "mlb_encoder.pickle"), "wb") as pickle_fp:
         pickle.dump(mlb, pickle_fp, protocol=pickle.HIGHEST_PROTOCOL)
     
@@ -348,6 +370,7 @@ if __name__ == "__main__":
     parser.add_argument("--title_only", action="store_true", default=False, help="Use only the title as input.")
     parser.add_argument("--add_mt_do", action="store_true", default=False, help="Add the MicroThesaurus and Domain labels to be predicted.")
     parser.add_argument("--senato", action="store_true", default=False, help="Process the Senato data instead of the EUR-Lex one.")
+    parser.add_argument("--get_doc_ids", action="store_true", default=False, help="Get the document ids that are used in the splits. NOTE: only use for debugging.")
     parser.add_argument("--summarized", action="store_true", default=False, help="Process the summarized data instead of the full text one.")
     parser.add_argument("--summ_mode", type=str, default="centroid_full", choices=["centroid_full", "centroid_compressed", "centroid_compressed_bigram", "tfidf_l1", "tfidf_l2"], help="Summarization method to use. Only used if --summarized is also used.")
     parser.add_argument("--multi_core", action="store_true", default=False, help="Use multiple cores to process the data.")
