@@ -28,8 +28,8 @@ def extract_documents(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--data_path", type=str, default="./", help="Path to the folder containing the .json.gz files")
-    parser.add_argument("--output_path", type=str, default="./", help="Path to the folder where the output files will be saved")
+    parser.add_argument("--data_path", type=str, default="./data/it", help="Path to the folder containing the .json.gz files")
+    parser.add_argument("--output_path", type=str, default="./data/it/extracted", help="Path to the folder where the output files will be saved")
     
     args = parser.parse_args()
     extract_documents(args)

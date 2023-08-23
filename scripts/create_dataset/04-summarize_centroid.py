@@ -2,6 +2,8 @@ from os import makedirs, path, remove, rename
 from text_summarizer import Summarizer
 import json, gzip, argparse, zipfile, urllib.request
 from tqdm import tqdm
+from pagerange import PageRange
+from os import listdir, path
 import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
 
@@ -34,13 +36,18 @@ def summarize_data(args):
     new_path = args.output_path
     makedirs(new_path, exist_ok=True)
 
-    years = [str(i) for i in range(int(args.years.split("-")[0]), int(args.years.split("-")[1]) + 1)]
+    if args.years == "all":
+        years = [year for year in listdir(path_initial)
+                      if path.isfile(path.join(path_initial, year))
+                      and year.endswith(".json.gz")]
+    else:
+        years = [str(year) + ".json.gz" for year in PageRange(args.years).pages]
 
-    print(f"Working on data from {path_initial}. Language: {args.summ_lang}. Years to process: {years}.")
+    print(f"Working on data from {path_initial}. Language: {args.summ_lang}. Files to process: {', '.join(years)}.")
 
     for file in years:
         try:
-            with gzip.open(path.join(path_initial, file+".json.gz"), "rt", encoding="utf-8") as fp:
+            with gzip.open(path.join(path_initial, file), "rt", encoding="utf-8") as fp:
                 data = json.load(fp)
         except:
             print(f"Archive for {file} not found")
@@ -65,15 +72,15 @@ def summarize_data(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--data_path", type=str, default="./", help="Path to the folder containing the json.gz files")
-    parser.add_argument("--output_path", type=str, default="./summarized", help="Path to the folder where the summarized files will be saved")
-    parser.add_argument("--summ_lang", type=str, default="italian", help="Language of the summarizer model")
+    parser.add_argument("--lang", type=str, default="italian", help="Language of the summarizer model")
+    parser.add_argument("--data_path", type=str, default="./data/it/extracted/few_labels_removed", help="Path to the folder containing the json.gz files")
+    parser.add_argument("--output_path", type=str, default="./data-summ/it", help="Path to the folder where the summarized files will be saved")
     parser.add_argument("--model_path", type=str, default="./cc.it.300.bin", help="Path to the folder containing the summarizer model")
+    parser.add_argument("--years", type=str, default="all", help="Range of years to summarize (e.g. 2010-2022 includes 2022). Use 'all' to process all the files in the given folder.")
     parser.add_argument("--compressed", action="store_true", default=False, help="Whether the model is compressed or not")
     parser.add_argument("--tokenizer", type=str, default="nltk", choices=["udpipe1", "udpipe2", "nltk", "spacy"], help="Tokenizer to use for the summarizer. NOTE: right now spacy is only available for english texts")
-    parser.add_argument("--max_length", type=int, default=1000000, help="Maximum length to pass to spacy (leave it to the default value if you don't have issues with memory)")
+    parser.add_argument("--max_length", type=int, default=6000000, help="Maximum length to pass to spacy (leave it to the default value if you don't have issues with memory)")
     parser.add_argument("--model_type", type=str, default="fasttext", choices=["fasttext", "word2vec"], help="Type of the summarizer model")
-    parser.add_argument("--years", type=str, default="2010-2022", help="Range of years to summarize (extremes included)")
 
     args = parser.parse_args()
     summarize_data(args)
