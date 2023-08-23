@@ -5,8 +5,8 @@ de: bert-base-german-cased
 el: nlpaueb/bert-base-greek-uncased-v1
 en: nlpaueb/legal-bert-base-uncased
 es: dccuchile/bert-base-spanish-wwm-cased
-et: tartuNLP/EstBERT
-fi: TurkuNLP/bert-base-finnish-cased-v1
+et: EMBEDDIA/finest-bert
+fi: EMBEDDIA/finest-bert
 fr: camembert-base
 ga: bert-base-multilingual-cased
 hu: SZTAKI-HLT/hubert-base-cc
