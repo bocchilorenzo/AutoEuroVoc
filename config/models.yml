@@ -9,6 +9,7 @@ et: EMBEDDIA/finest-bert
 fi: EMBEDDIA/finest-bert
 fr: camembert-base
 ga: bert-base-multilingual-cased
+hr: bert-base-multilingual-cased
 hu: SZTAKI-HLT/hubert-base-cc
 it: dbmdz/bert-base-italian-cased
 lt: EMBEDDIA/litlat-bert
