@@ -47,7 +47,7 @@ def remove_few_labels(args):
 
     deleted_docs = set()
     print(f"Found {previous_labels_length-len(docs_per_label)}/{previous_labels_length} "
-          "labels with less than {args.threshold} documents.")
+          f"labels with less than {args.threshold} documents.")
     print("Removing labels from data...")
     for year in tqdm(args.years):
         with gzip.open(path.join(path_initial, year), "rt", encoding="utf-8") as f:
