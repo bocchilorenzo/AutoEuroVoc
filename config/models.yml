@@ -8,7 +8,7 @@ es: dccuchile/bert-base-spanish-wwm-cased
 et: EMBEDDIA/finest-bert
 fi: EMBEDDIA/finest-bert
 fr: camembert-base
-ga: bert-base-multilingual-cased
+ga: DCU-NLP/bert-base-irish-cased-v1
 hr: bert-base-multilingual-cased
 hu: SZTAKI-HLT/hubert-base-cc
 it: dbmdz/bert-base-italian-cased
