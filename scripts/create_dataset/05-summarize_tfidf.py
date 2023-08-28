@@ -40,7 +40,7 @@ if args.mode == "label":
 else:
     docs_to_process = []
 stop = set(stopwords.words(args.lang))
-pattern = compile('[^a-zA-Z]+') # Find all non-alphabetic characters 
+pattern = compile('[^a-zA-Z]+') # Find all non-alphabetic characters
 nlp = spacy.load(args.spacy_model)
 nlp.max_length = 6000000 # Needed to avoid out of memory errors
 
