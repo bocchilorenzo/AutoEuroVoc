@@ -50,7 +50,7 @@ def remove_few_labels(args):
           "labels with less than {args.threshold} documents.")
     print("Removing labels from data...")
     for year in tqdm(args.years):
-        with gzip.open(path.join(path_initial, year + ".json.gz"), "rt", encoding="utf-8") as f:
+        with gzip.open(path.join(path_initial, year), "rt", encoding="utf-8") as f:
             data = json.load(f)
             for doc in list(data.keys()):
                 for label in list(data[doc]["eurovoc_classifiers"]):
@@ -61,7 +61,7 @@ def remove_few_labels(args):
                 if len(data[doc]["eurovoc_classifiers"]) == 0:
                     deleted_docs.add((doc, year))
                     del data[doc]
-        with gzip.open(path.join(args.output_path, year + ".json.gz"), "wt", encoding="utf-8") as f:
+        with gzip.open(path.join(args.output_path, year), "wt", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
 
     print(
