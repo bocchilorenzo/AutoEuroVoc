@@ -260,6 +260,7 @@ class Summarizer:
         simplifiedSentences = []
         allowedPos = {"PROPN", "VERB", "NOUN", "ADJ", "ADV"}
 
+        empty = True
         for sentence in sentences:
             simplifiedSentence = []
             l = len(sentence['text'])
@@ -280,13 +281,16 @@ class Summarizer:
                     simplifiedSentence = []
 
             # import pdb;pdb.set_trace()
-
+            empty = empty and len(simplifiedSentence) == 0
             simplifiedSentences.append(" ".join(simplifiedSentence))
 
-        if len(simplifiedSentences) == 0:
+        if empty:
+            simplifiedSentences = []
             for sentence in sentences:
                 simplifiedSentence = []
+                print(sentence)
                 for i in range(len(sentence["token"])):
+                    pos = sentence["pos"][i]
                     if pos in allowedPos:
                         simplifiedSentence.append(sentence["lemma"][i])
                 simplifiedSentences.append(" ".join(simplifiedSentence))
