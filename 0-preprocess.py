@@ -260,6 +260,8 @@ def process_datasets(data_path, directory, tokenizer_name):
             args.years = [str(year) + f"_{sum_type}" for year in args.years]
         else:
             args.years = [str(year) + ".json.gz" for year in args.years]
+        
+    args.years = sorted(args.years)
     
     # Test if the file is summarized or not
     with gzip.open(os.path.join(data_path, directory, args.years[0]), "rt", encoding="utf-8") as file:
