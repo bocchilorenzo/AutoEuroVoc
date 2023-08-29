@@ -53,8 +53,8 @@ def save_splits(X, masks, y, directory, mlb):
         # Create two splits: test and dev
         stratifier = IterativeStratification(n_splits=2, order=2, sample_distribution_per_fold=[0.5, 0.5])
         dev_idx, test_idx = next(stratifier.split(X[aux_idx, :], y[aux_idx, :]))
-        dev_X, dev_mask, dev_y = X[dev_idx, :], masks[dev_idx, :], y[dev_idx, :]
-        test_X, test_mask, test_y = X[test_idx, :], masks[test_idx, :], y[test_idx, :]
+        dev_X, dev_mask, dev_y = X[aux_idx, :][dev_idx, :], masks[aux_idx, :][dev_idx, :], y[aux_idx, :][dev_idx, :]
+        test_X, test_mask, test_y = X[aux_idx, :][test_idx, :], masks[aux_idx, :][test_idx, :], y[aux_idx, :][test_idx, :]
 
         assert dev_X.shape[0] == dev_mask.shape[0] == dev_y.shape[0]
         assert test_X.shape[0] == test_mask.shape[0] == test_y.shape[0]
