@@ -259,6 +259,7 @@ class Summarizer:
         # each item of sentences is a complex object, let's simplify it
         simplifiedSentences = []
         allowedPos = {"PROPN", "VERB", "NOUN", "ADJ", "ADV"}
+
         for sentence in sentences:
             simplifiedSentence = []
             l = len(sentence['text'])
@@ -281,6 +282,14 @@ class Summarizer:
             # import pdb;pdb.set_trace()
 
             simplifiedSentences.append(" ".join(simplifiedSentence))
+
+        if len(simplifiedSentences) == 0:
+            for sentence in sentences:
+                simplifiedSentence = []
+                for i in range(len(sentence["token"])):
+                    if pos in allowedPos:
+                        simplifiedSentence.append(sentence["lemma"][i])
+                simplifiedSentences.append(" ".join(simplifiedSentence))
 
         try:
             centroid = self._gen_centroid(simplifiedSentences)
