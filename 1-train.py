@@ -202,6 +202,7 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--lang", type=str, default="it", help="Language to train the model on.")
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the EuroVoc data.")
+    parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models.")
     parser.add_argument("--seeds", type=str, default="all", help="Seeds to be used to load the data splits, separated by a comma (e.g. 110,221). Use 'all' to use all the data splits.")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to train on.")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs to train the model.")
@@ -223,7 +224,6 @@ if __name__ == "__main__":
         help="Evaluation metric to use on the validation set.")
     parser.add_argument("--full_metrics", action="store_true", default=False, help="Compute all the metrics during the evaluation.")
     parser.add_argument("--trust_remote", action="store_true", default=False, help="Trust the remote code for the model.")
-    parser.add_argument("--models_path", type=str, default="models/", help="Save path of the models.")
     parser.add_argument("--save_class_report", action="store_true", default=False, help="Save the classification report.")
     parser.add_argument("--class_report_step", type=int, default=1, help="Number of epochs before creating a new classification report.")
 
