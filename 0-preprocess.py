@@ -18,13 +18,15 @@ from datetime import datetime
 from pagerange import PageRange
 
 seeds = []
+output_path = None
+script_folder = os.path.dirname(os.path.realpath(__file__))
 
 # The domains and microthesaurus labels are loaded from the json files
-with open("config/domain_labels_position.json", "r") as fp:
+with open(os.path.join(script_folder, "config/domain_labels_position.json"), "r") as fp:
     domain = json.load(fp)
-with open("config/mt_labels_position.json", "r") as fp:
+with open(os.path.join(script_folder, "config/mt_labels_position.json"), "r") as fp:
     microthesaurus = json.load(fp)
-with open("config/mt_labels.json", "r", encoding="utf-8") as file:
+with open(os.path.join(script_folder, "config/mt_labels.json"), "r", encoding="utf-8") as file:
     mt_labels = json.load(file)
 
 def save_splits(X, masks, y, directory, mlb):
@@ -62,24 +64,24 @@ def save_splits(X, masks, y, directory, mlb):
         to_print = f"{seed} - Splitted the documents in - train: {train_X.shape[0]}, dev: {dev_X.shape[0]}, test: {test_X.shape[0]}"
         print(to_print)
 
-        with open(os.path.join(args.data_path, directory, "stats.txt"), "a+") as f:
+        with open(os.path.join(directory, "stats.txt"), "a+") as f:
             f.write(to_print + "\n")
 
-        if not os.path.exists(os.path.join(args.data_path, directory, f"split_{seed}")):
-            os.makedirs(os.path.join(args.data_path, directory, f"split_{seed}"))
+        if not os.path.exists(os.path.join(directory, f"split_{seed}")):
+            os.makedirs(os.path.join(directory, f"split_{seed}"))
 
         # Save the splits
-        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "train_X.npy"), train_X)
-        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "train_mask.npy"), train_mask)
-        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "train_y.npy"), train_y)
+        np.save(os.path.join(directory, f"split_{seed}", "train_X.npy"), train_X)
+        np.save(os.path.join(directory, f"split_{seed}", "train_mask.npy"), train_mask)
+        np.save(os.path.join(directory, f"split_{seed}", "train_y.npy"), train_y)
 
-        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "dev_X.npy"), dev_X)
-        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "dev_mask.npy"), dev_mask)
-        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "dev_y.npy"), dev_y)
+        np.save(os.path.join(directory, f"split_{seed}", "dev_X.npy"), dev_X)
+        np.save(os.path.join(directory, f"split_{seed}", "dev_mask.npy"), dev_mask)
+        np.save(os.path.join(directory, f"split_{seed}", "dev_y.npy"), dev_y)
 
-        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "test_X.npy"), test_X)
-        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "test_mask.npy"), test_mask)
-        np.save(os.path.join(args.data_path, directory, f"split_{seed}", "test_y.npy"), test_y)
+        np.save(os.path.join(directory, f"split_{seed}", "test_X.npy"), test_X)
+        np.save(os.path.join(directory, f"split_{seed}", "test_mask.npy"), test_mask)
+        np.save(os.path.join(directory, f"split_{seed}", "test_y.npy"), test_y)
 
         # Save the counts of each label, useful for weighted loss
         sample_labs = mlb.inverse_transform(train_y)
@@ -89,7 +91,7 @@ def save_splits(X, masks, y, directory, mlb):
             for label in sample:
                 labs_count["labels"][label] += 1
         
-        with open(os.path.join(args.data_path, directory, f"split_{seed}", "train_labs_count.json"), "w") as fp:
+        with open(os.path.join(directory, f"split_{seed}", "train_labs_count.json"), "w") as fp:
             json.dump(labs_count, fp)
 
         # Shuffle the splits using the random seed for reproducibility
@@ -228,12 +230,12 @@ def process_year(path, tokenizer_name, args):
 
     return list_inputs, list_masks, list_labels, to_print
 
-def process_datasets(data_path, directory, tokenizer_name):
+def process_datasets(data_path, output_path, lang_dir, tokenizer_name):
     """
     Process the datasets and save them in the specified directory.
 
     :param data_path: Path to the data.
-    :param directory: Language directory.
+    :param lang_dir: Language directory.
     :param tokenizer_name: Name of the tokenizer to use.
     """
 
@@ -246,12 +248,12 @@ def process_datasets(data_path, directory, tokenizer_name):
     # If no years are specified, process all the downloaded years depending on the arguments.
     args.summarized = False
     if args.years == "all":
-        args.years = [year for year in os.listdir(os.path.join(data_path, directory))
-                      if os.path.isfile(os.path.join(data_path, directory, year))
+        args.years = [year for year in os.listdir(os.path.join(data_path, lang_dir))
+                      if os.path.isfile(os.path.join(data_path, lang_dir, year))
                       and year.endswith(".json.gz")]
     else:
         args.years = PageRange(args.years).pages
-        files_in_directory = [file for file in os.listdir(os.path.join(data_path, directory))
+        files_in_directory = [file for file in os.listdir(os.path.join(data_path, lang_dir))
                               if file.endswith(".json.gz")]
 
         are_any_summarized = ["sum" in file for file in files_in_directory]
@@ -262,7 +264,7 @@ def process_datasets(data_path, directory, tokenizer_name):
             args.years = [str(year) + ".json.gz" for year in args.years]
     
     # Test if the file is summarized or not
-    with gzip.open(os.path.join(data_path, directory, args.years[0]), "rt", encoding="utf-8") as file:
+    with gzip.open(os.path.join(data_path, lang_dir, args.years[0]), "rt", encoding="utf-8") as file:
         data = json.load(file)
         if "importance" in data[tuple(data.keys())[0]]:
             args.summarized = True
@@ -272,7 +274,7 @@ def process_datasets(data_path, directory, tokenizer_name):
 
     for year in args.years:
         print(f"Processing file: '{year}'...")
-        year_inputs, year_masks, year_labels, year_stats = process_year(os.path.join(data_path, directory, year), tokenizer_name, args)
+        year_inputs, year_masks, year_labels, year_stats = process_year(os.path.join(data_path, lang_dir, year), tokenizer_name, args)
         
         list_inputs += year_inputs
         list_masks += year_masks
@@ -289,28 +291,38 @@ def process_datasets(data_path, directory, tokenizer_name):
     X = pad_sequence(list_inputs, batch_first=True, padding_value=tokenizer.pad_token_id).numpy()
     masks = pad_sequence(list_masks, batch_first=True, padding_value=0).numpy()
 
+    if not os.path.exists(os.path.join(output_path, lang_dir)):
+        os.makedirs(os.path.join(output_path, lang_dir))
+
     # Save the MultiLabelBinarizer.
-    with open(os.path.join(args.data_path, directory, "mlb_encoder.pickle"), "wb") as pickle_fp:
+    with open(os.path.join(output_path, lang_dir, "mlb_encoder.pickle"), "wb") as pickle_fp:
         pickle.dump(mlb, pickle_fp, protocol=pickle.HIGHEST_PROTOCOL)
     
     if not args.limit_tokenizer:
-        with open(os.path.join(args.data_path, directory, "stats.txt"), "w") as stats_fp:
+        with open(os.path.join(output_path, lang_dir, "stats.txt"), "w") as stats_fp:
             for year, year_stats in zip(list_years, list_stats):
                 stats_fp.write(f"Year: {year}\n{year_stats}\n\n")
 
-    save_splits(X, masks, y, directory, mlb)
+    save_splits(X, masks, y, os.path.join(output_path, lang_dir), mlb)
 
 def preprocess_data():
     """
     Load the configuration file and process the data.
     """
-    with open("config/models.yml", "r") as fp:
+    with open(os.path.join(script_folder, "config/models.yml"), "r") as fp:
         config = yaml.safe_load(fp)
     
     global seeds
     seeds = args.seeds.split(",")
 
     print(f"Tokenizers config:\n{format(config)}")
+
+    if args.output_path:
+        output_path = args.output_path
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+    else:
+        output_path = args.data_path
     
     for directory in os.listdir(args.data_path):
         # If we specified one or more languages, we only process those.
@@ -321,12 +333,13 @@ def preprocess_data():
         lang = directory
         print(f"Lang: '{lang}', Tokenizer: '{config[lang]}'")
 
-        process_datasets(args.data_path, directory, config[lang])
+        process_datasets(args.data_path, output_path, directory, config[lang])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--langs", type=str, default="it", help="Languages to be processed, separated by a comme (e.g. en,it). Write 'all' to process all the languages.")
     parser.add_argument("--data_path", type=str, default="data/", help="Path to the data to process.")
+    parser.add_argument("--output_path", metavar="FOLDER", type=str, help="Path to the folder where the summarized files will be saved (default: same as data_path)")
     parser.add_argument("--years", type=str, default="all", help="Year range to be processed, separated by a minus (e.g. 2010-2020 will get all the years between 2010 and 2020 included) or individual years separated by a comma (to use a single year, simply type it normally like '2016'). Write 'all' to process all the files in the folder.")
     parser.add_argument("--seeds", type=str, default="110", help="Seeds to be used for the randomization and creating the data splits, separated by a comma (e.g. 110,221).")
     parser.add_argument("--add_title", action="store_true", default=False, help="Add the title to the text.")
