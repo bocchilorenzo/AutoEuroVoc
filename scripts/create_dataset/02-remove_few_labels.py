@@ -9,7 +9,10 @@ from pagerange import PageRange
 def remove_few_labels(args):
     path_initial = args.data_path
 
-    makedirs(args.output_path, exist_ok=True)
+    output_path = args.output_path
+    if not output_path:
+        output_path = path.join(path_initial, "few_labels_removed")
+    makedirs(output_path, exist_ok=True)
 
     if args.years == "all":
         args.years = []
@@ -61,7 +64,7 @@ def remove_few_labels(args):
                 if len(data[doc]["eurovoc_classifiers"]) == 0:
                     deleted_docs.add((doc, year))
                     del data[doc]
-        with gzip.open(path.join(args.output_path, year), "wt", encoding="utf-8") as f:
+        with gzip.open(path.join(output_path, year + ".json.gz"), "wt", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
 
     print(
@@ -69,16 +72,11 @@ def remove_few_labels(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Remove labels associated with few documents from the dataset.",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--data_path", type=str,
-                        default="./data/it/extracted", help="Path to the data folder")
-    parser.add_argument("--output_path", type=str,
-                        default="./data/it/extracted/few_labels_removed", help="Path to the output folder")
+    parser = argparse.ArgumentParser(description="Remove labels associated with few documents from the dataset.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--data_path", type=str, help="Path to the data folder", required=True, metavar="FOLDER")
+    parser.add_argument("--output_path", type=str, help="Output folder (default: {data_path}/few_labels_removed)", metavar="FOLDER")
+    parser.add_argument("--threshold", type=int, default=10, help="Threshold for the number of documents per label")
     parser.add_argument("--years", type=str, default="all",
                         help="Years to consider. If not specified, all the years will be considered. Multiple years can be specified either as a comma-separated list (e.g. 2019,2020,2021) or as a range (e.g. 2019-2021).")
-    parser.add_argument("--threshold", type=int, default=10,
-                        help="Threshold for the number of documents per label")
-
     args = parser.parse_args()
     remove_few_labels(args)
