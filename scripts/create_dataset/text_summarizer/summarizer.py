@@ -5,14 +5,6 @@ from gensim.models import KeyedVectors
 from gensim.models.fasttext import load_facebook_model
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.spatial.distance import cosine
-from nltk import download
-download("punkt")
-download("stopwords")
-from nltk.corpus import stopwords
-from stop_words import get_stop_words
-from nltk.tokenize import TreebankWordTokenizer
-from nltk.data import load
-import ufal.udpipe
 from yaml import safe_load
 from re import sub
 from os import path
@@ -23,105 +15,6 @@ import spacy
 from text_summarizer import Cache
 spacy.prefer_gpu()
 import json
-
-# https://github.com/ufal/udpipe/tree/master/bindings/python/examples
-# class Model:
-#     def __init__(self, path):
-#         """Load given model."""
-#         self.model = ufal.udpipe.Model.load(path)
-#         if not self.model:
-#             raise Exception("Cannot load UDPipe model from file '%s'" % path)
-
-#     def tokenize(self, text):
-#         """Tokenize the text and return list of ufal.udpipe.Sentence-s."""
-#         tokenizer = self.model.newTokenizer(self.model.DEFAULT)
-#         if not tokenizer:
-#             raise Exception("The model does not have a tokenizer")
-#         return self._read(text, tokenizer)
-
-#     def read(self, text, format):
-#         """Load text in the given format (conllu|horizontal|vertical) and return list of ufal.udpipe.Sentence-s."""
-#         input_format = ufal.udpipe.InputFormat.newInputFormat(format)
-#         if not input_format:
-#             raise Exception("Cannot create input format '%s'" % format)
-#         return self._read(text, input_format)
-
-#     def _read(self, text, input_format):
-#         input_format.setText(text)
-#         error = ufal.udpipe.ProcessingError()
-#         sentences = []
-
-#         sentence = ufal.udpipe.Sentence()
-#         while input_format.nextSentence(sentence, error):
-#             sentences.append(sentence)
-#             sentence = ufal.udpipe.Sentence()
-#         if error.occurred():
-#             raise Exception(error.message)
-
-#         return sentences
-
-#     def tag(self, sentence):
-#         """Tag the given ufal.udpipe.Sentence (inplace)."""
-#         self.model.tag(sentence, self.model.DEFAULT)
-
-#     def parse(self, sentence):
-#         """Parse the given ufal.udpipe.Sentence (inplace)."""
-#         self.model.parse(sentence, self.model.DEFAULT)
-
-#     def write(self, sentences, format):
-#         """Write given ufal.udpipe.Sentence-s in the required format (conllu|horizontal|vertical)."""
-
-#         output_format = ufal.udpipe.OutputFormat.newOutputFormat(format)
-#         output = ""
-#         for sentence in sentences:
-#             output += output_format.writeSentence(sentence)
-#         output += output_format.finishDocument()
-
-#         return output
-
-#     def write_list(self, sentences):
-#         """Write given ufal.udpipe.Sentence-s in an iterable list."""
-
-#         output_format = ufal.udpipe.OutputFormat.newOutputFormat("horizontal")
-#         output = [output_format.writeSentence(sentence).strip() for sentence in sentences]
-        
-#         return output
-    
-# class UDPipe2:
-#     def __init__(self, language):
-#         with open(path.join(path.dirname(path.abspath(__file__)), "models2.yml"), "r") as f:
-#             model_configs = safe_load(f)
-#         self.model = model_configs[language]
-    
-#     def tokenize(self, text):
-#         url = f"http://lindat.mff.cuni.cz/services/udpipe/api/process"
-#         response = post(url, data={
-#             "model": self.model,
-#             "tokenizer": True,
-#             "output": "horizontal",
-#             "data": text
-#         })
-#         sleep(0.5)
-#         if response.status_code == 200:
-#             return response.json()["result"].split("\n")
-#         else:
-#             raise Exception("Cannot tokenize text")
-
-
-class UDPipe:
-    def __init__(self, url):
-        self.url = url
-    
-    def tokenize(self, text):
-        response = post(self.url, data={
-            "tokenizer": "",
-            "output": "horizontal",
-            "data": text
-        })
-        if response.status_code == 200:
-            return response.json()["result"].split("\n")
-        else:
-            raise Exception("Cannot tokenize text")
 
 
 class LookupTable:
@@ -201,16 +94,13 @@ class Summarizer:
         model_type="fasttext",
         compressed=True,
         tfidf_threshold=0.3,
-        language="italian",
         ngram_range=(1, 1),
-        tokenizer="nltk",
-        udpipe_url="http://127.0.0.1:30101/process",
         spacy_model="en_core_web_sm",
         spacy_num_threads=8,
         spacy_max_length=1000000,
         cache=None,
         min_sent_length=20,
-        max_sent_length=300,
+        max_sent_length=500,
         max_sent_entity_ratio=0.5
     ):
         """
@@ -218,15 +108,12 @@ class Summarizer:
         :param model_type: type of the model to use (fasttext or word2vec)
         :param compressed: True if the model is compressed, False otherwise
         :param tfidf_threshold: threshold to filter relevant terms
-        :param language: language of the text to summarize
         :param ngram_range: range of ngrams to use
-        :param tokenizer: tokenizer to use (udpipe1, udpipe2 or nltk)
         :param spacy_max_length: maximum length to pass to spacy's nlp.pipe
         """
         self.lookup_table = LookupTable(model_path, model_type, compressed)
         self.tfidf_threshold = tfidf_threshold
         self.sentence_retriever = []
-        self.language = language
         self.ngram_range = ngram_range
         self.model_type = model_type
         self.compressed = compressed
@@ -239,36 +126,18 @@ class Summarizer:
         self.cache = None
         if cache:
             self.cache = Cache(cache)
-        # if tokenizer == "udpipe1":
-        #     self.tokenizer_mode = "udpipe1"
-        #     with open(path.join(path.dirname(path.abspath(__file__)), "models.yml"), "r") as f:
-        #         self.model_configs = safe_load(f)
-        #     self.sent_tokenizer = Model(
-        #         path.join("./models", self.model_configs[language] + ".udpipe")
-        #     )
-        # elif tokenizer == "udpipe2":
-        #     self.tokenizer_mode = "udpipe2"
-        #     self.sent_tokenizer = UDPipe2(language)
-        if tokenizer == "udpipe":
-            self.tokenizer_mode = "udpipe"
-            self.sent_tokenizer = UDPipe(udpipe_url)
-        elif tokenizer == "nltk":
-            self.tokenizer_mode = "nltk"
-            self.sent_tokenizer = load(f"tokenizers/punkt/{language}.pickle")
-        elif tokenizer == "spacy":
-            self.tokenizer_mode = "spacy"
 
-            print(f"Loading model for spaCy:", spacy_model)
-            try:
-                self.nlp = spacy.load(spacy_model)
-            except OSError:
-                print('Downloading language model for spaCy')
-                spacy.cli.download(spacy_model)
-                self.nlp = spacy.load(spacy_model)
+        self.tokenizer_mode = "spacy"
 
-            self.nlp.max_length = spacy_max_length
-        else:
-            raise ValueError("Invalid tokenizer")
+        print(f"Loading model for spaCy:", spacy_model)
+        try:
+            self.nlp = spacy.load(spacy_model)
+        except OSError:
+            print('Downloading language model for spaCy')
+            spacy.cli.download(spacy_model)
+            self.nlp = spacy.load(spacy_model)
+
+        self.nlp.max_length = spacy_max_length
 
     def _preprocessing(self, text, docID):
         """
@@ -291,10 +160,6 @@ class Summarizer:
 
         # Store the sentence before process them. We need them to build final summary
         self.sentence_retriever = [sentence['text'] for sentence in sentences]
-
-        # Remove punctuation and stopwords
-        # sentences = self.remove_punctuation_nltk(sentences)
-        # sentences = self.remove_stopwords(sentences)
 
         return sentences
 
@@ -417,47 +282,16 @@ class Summarizer:
 
             simplifiedSentences.append(" ".join(simplifiedSentence))
 
-        centroid = self._gen_centroid(simplifiedSentences)
+        try:
+            centroid = self._gen_centroid(simplifiedSentences)
+        except:
+            return "", ""
 
         # Sentence vectorization + sentence selection
         sentences_dict = self._sentence_vectorizer(simplifiedSentences)
         ids_importance, phrases = self._sentence_selection(centroid, sentences_dict)
 
         return ids_importance, phrases
-
-    def remove_punctuation_nltk(self, data):
-        """
-        Remove punctuation from the sentences
-
-        :param data: sentences to process
-        :return: sentences without punctuation
-        """
-        return [
-            " ".join(TreebankWordTokenizer().tokenize(sentence.lower()))
-            for sentence in data
-        ]
-
-    def remove_stopwords(self, data):
-        """
-        Remove stopwords from the sentences
-
-        :param data: sentences to process
-        :return: sentences without stopwords
-        """
-        to_return = []
-        try:
-            stop = set(stopwords.words(self.language))
-        except:
-            stop = set(get_stop_words(self.language))
-        for sentence in data:
-            stopped = ""
-            sentence = sentence.lower().split(" ")
-            temp = [i for i in sentence if i not in stop]
-            for word in temp:
-                stopped += word
-                stopped += " "
-            to_return.append(stopped)
-        return to_return
 
     def get_data(self, text):
         """
@@ -467,54 +301,45 @@ class Summarizer:
         :return: sentences of the text
         """
 
-        # Code broken except for spaCy!
-        if self.tokenizer_mode != "spacy":
-            sentences = self.sent_tokenizer.tokenize(text)
-        if self.tokenizer_mode == "udpipe1":
-            parsed = self.sent_tokenizer.write_list(sentences)
-        elif self.tokenizer_mode == "spacy":
-            parsed = []
-            parts = text.split("\n")
-            parts = [x.strip() for x in parts]
-            if self.spacy_num_threads == 1:
-                for p in parts:
-                    doc = self.nlp(p)
-                    for sent in doc.sents:
-                        thisSentence = {}
-                        thisSentence['text'] = sent.text.strip()
-                        if not thisSentence['text']:
-                            continue
-                        thisSentence['token'] = []
-                        thisSentence['lemma'] = []
-                        thisSentence['pos'] = []
-                        thisSentence['ner'] = []
-                        for token in sent:
-                            thisSentence['token'].append(token.text)
-                            thisSentence['lemma'].append(token.lemma_)
-                            thisSentence['pos'].append(token.pos_)
-                            thisSentence['ner'].append(token.ent_type_)
-                        parsed.append(thisSentence)
-            else:
-                docs = self.nlp.pipe(parts, n_process=self.spacy_num_threads)
-                for doc in docs:
-                    for sent in doc.sents:
-                        thisSentence = {}
-                        thisSentence['text'] = sent.text.strip()
-                        if not thisSentence['text']:
-                            continue
-                        thisSentence['token'] = []
-                        thisSentence['lemma'] = []
-                        thisSentence['pos'] = []
-                        thisSentence['ner'] = []
-                        for token in sent:
-                            thisSentence['token'].append(token.text)
-                            thisSentence['lemma'].append(token.lemma_)
-                            thisSentence['pos'].append(token.pos_)
-                            thisSentence['ner'].append(token.ent_type_)
-                        parsed.append(thisSentence)
-
+        parsed = []
+        parts = text.split("\n")
+        parts = [x.strip() for x in parts]
+        if self.spacy_num_threads == 1:
+            for p in parts:
+                doc = self.nlp(p)
+                for sent in doc.sents:
+                    thisSentence = {}
+                    thisSentence['text'] = sent.text.strip()
+                    if not thisSentence['text']:
+                        continue
+                    thisSentence['token'] = []
+                    thisSentence['lemma'] = []
+                    thisSentence['pos'] = []
+                    thisSentence['ner'] = []
+                    for token in sent:
+                        thisSentence['token'].append(token.text)
+                        thisSentence['lemma'].append(token.lemma_)
+                        thisSentence['pos'].append(token.pos_)
+                        thisSentence['ner'].append(token.ent_type_)
+                    parsed.append(thisSentence)
         else:
-            parsed = sentences
+            docs = self.nlp.pipe(parts, n_process=self.spacy_num_threads)
+            for doc in docs:
+                for sent in doc.sents:
+                    thisSentence = {}
+                    thisSentence['text'] = sent.text.strip()
+                    if not thisSentence['text']:
+                        continue
+                    thisSentence['token'] = []
+                    thisSentence['lemma'] = []
+                    thisSentence['pos'] = []
+                    thisSentence['ner'] = []
+                    for token in sent:
+                        thisSentence['token'].append(token.text)
+                        thisSentence['lemma'].append(token.lemma_)
+                        thisSentence['pos'].append(token.pos_)
+                        thisSentence['ner'].append(token.ent_type_)
+                    parsed.append(thisSentence)
 
         fixed_sentences = [self._fix_sentence(s) for s in parsed]
         return fixed_sentences
