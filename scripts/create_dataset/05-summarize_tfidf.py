@@ -19,6 +19,10 @@ from text_summarizer import Cache
 def summarize(args):
     print(f"Arguments: {args}")
 
+    seeds = []
+    if args.seeds:
+        seeds = args.seeds.split(",")        
+
     print(f"Reading seeds file {args.seed_path}")
     with open(args.seed_path, "r") as f:
         seed_list = json.load(f)
@@ -50,6 +54,8 @@ def summarize(args):
     nlp.max_length = args.spacy_max_length
 
     for seed in seed_list:
+        if seeds and seed not in seeds:
+            continue
 
         makedirs(path.join(args.output_path, seed), exist_ok=True)
 
@@ -130,7 +136,6 @@ def summarize(args):
                     if cache:
                         s = cache.getFile(doc)
                         if s:
-                            print("Load from cache")
                             sentences = json.loads(s)
                         else:
                             sentences = lex_utils.get_data(text, nlp, args.spacy_num_threads)
@@ -187,6 +192,7 @@ if __name__ == "__main__":
     parser.add_argument("--spacy_num_threads", metavar="NUM", type=int, default=8, help="Number of processes for spaCy")
 
     parser.add_argument("--seed_path", type=str, help="JSON file for seeds", required=True)
+    parser.add_argument("--seeds", type=str, help="Seeds to use, separated by a comma (e.g. 110,221).")
 
     parser.add_argument("--years", type=str, default="all", help="Range of years to summarize (e.g. 2010-2022 includes 2022). Use 'all' to process all the files in the given folder.")
     parser.add_argument("--cache", type=str, default=None, help="Cache folder for tokenization results")
