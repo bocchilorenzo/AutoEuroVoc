@@ -97,6 +97,135 @@ def save_splits(X, masks, y, directory, mlb):
         # Shuffle the splits using the random seed for reproducibility
         X, masks, y = shuffle(X, masks, y, random_state=int(seed))
 
+def process_year_data(path, tokenizer_name, args):
+    """
+    Process a year of the dataset.
+
+    :param path: Path to the data.
+    :param tokenizer_name: Name of the tokenizer to use.
+    :param args: Command line arguments.
+    :return: List of inputs, masks and labels.
+    """
+    document_ct = 0
+    big_document_ct = 0
+    unk_ct = 0
+    tokens_ct = 0
+
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+
+    tokenizer_kwargs = {"padding": "max_length", "truncation": True, "max_length": args.max_length}
+
+    # list_inputs = []
+    # list_labels = []
+    # list_masks = []
+
+    outData = {}
+
+    with gzip.open(path, "rt", encoding="utf-8") as file:
+        data = json.load(file)
+        j = 1
+        # Process the text
+        for doc in data:
+            print(f"{datetime.now().replace(microsecond=0)} - {j}/{len(data)}", end="\r")
+            j += 1
+            # if j > 10:
+            #     break
+            outData[doc] = {}
+            text = ""
+            if args.add_mt_do:
+                # Add MT and DO labels
+                labels = set(data[doc]["eurovoc_classifiers"]) if "eurovoc_classifiers" in data[doc] else set(data[doc]["eurovoc"])
+                to_add = set()
+                for label in labels:
+                    if label in mt_labels:
+                        if mt_labels[label] in microthesaurus:
+                            to_add.add(mt_labels[label] + "_mt")
+                        if mt_labels[label][:2] in domain:
+                            to_add.add(mt_labels[label][:2] + "_do")
+                
+                labels = list(labels.union(to_add))
+            else:
+                labels = data[doc]["eurovoc_classifiers"] if "eurovoc_classifiers" in data[doc] else data[doc]["eurovoc"]
+
+            if args.title_only:
+                text = data[doc]["title"]
+            else:
+                if args.add_title:
+                    text = data[doc]["title"] + " "
+                
+                if "summarized_text" in data[doc]:
+                    text += data[doc]["summarized_text"]
+                else:
+                    if args.summarized:
+                        full_text = data[doc]["full_text"]
+                        phrase_importance = []
+                        i = 0
+
+                        for imp in data[doc]["importance"]:
+                            if math.isnan(imp):
+                                imp = 0
+                            phrase_importance.append((i, imp))
+                            i += 1
+                        
+                        phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
+
+                        # First, we get the most important phrases until the maximum length is reached.
+                        if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
+                            backup = deepcopy(phrase_importance)
+                            while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
+                                phrase_importance = phrase_importance[:-1]
+                            phrase_importance.append(backup[len(phrase_importance)])
+
+                        # Then, we sort the phrases by their position in the document.
+                        phrase_importance = sorted(phrase_importance, key=lambda x: x[0])
+                        text += " ".join([full_text[phrase[0]] for phrase in phrase_importance])
+                    else:
+                        text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
+            
+            text = re.sub(r'\r', '', text)
+            
+            if args.limit_tokenizer:
+                # Here, the text is cut to the maximum length before being tokenized,
+                # potentially speeding up the process for long documents.
+                inputs_ids = tensor(tokenizer.encode(text, **tokenizer_kwargs))
+            else:
+                inputs_ids = tensor(tokenizer.encode(text))
+
+            if not args.limit_tokenizer:
+                document_ct += 1
+
+                # We count the number of unknown tokens and the total number of tokens.
+                for token in inputs_ids[1: -1]:
+                    if token == tokenizer.unk_token_id:
+                        unk_ct += 1
+
+                    tokens_ct += 1
+
+                # If the input is over the maximum length, we cut it and increment the count of big documents.
+                if len(inputs_ids) > args.max_length:
+                    big_document_ct += 1
+                    inputs_ids = inputs_ids[:args.max_length]
+
+            outData[doc]['x'] = inputs_ids
+            outData[doc]['y'] = labels
+            outData[doc]['m'] = ones_like(inputs_ids)
+    
+    del data, inputs_ids, labels, tokenizer
+
+    # Just some stats to print and save later.
+    if len(outData) == 0:
+        print("No documents found in the dataset.")
+        to_print = ""
+    else:
+        if not args.limit_tokenizer and not args.get_doc_ids:
+            to_print = f"Dataset stats: - total documents: {document_ct}, big documents: {big_document_ct}, ratio: {big_document_ct / document_ct * 100:.4f}%"
+            to_print += f"\n               - total tokens: {tokens_ct}, unk tokens: {unk_ct}, ratio: {unk_ct / tokens_ct * 100:.4f}%"
+            print(to_print)
+        else:
+            to_print = ""
+
+    return outData, to_print
+
 def process_year(path, tokenizer_name, args):
     """
     Process a year of the dataset.
@@ -161,30 +290,34 @@ def process_year(path, tokenizer_name, args):
                     if args.add_title:
                         text = data[doc]["title"] + " "
                     
-                    if args.summarized:
-                        full_text = data[doc]["full_text"]
-                        phrase_importance = []
-                        i = 0
-
-                        for imp in data[doc]["importance"]:
-                            if not math.isnan(imp):
-                                phrase_importance.append((i, imp))
-                            i += 1
-                        
-                        phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
-
-                        # First, we get the most important phrases until the maximum length is reached.
-                        if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
-                            backup = deepcopy(phrase_importance)
-                            while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
-                                phrase_importance = phrase_importance[:-1]
-                            phrase_importance.append(backup[len(phrase_importance)])
-
-                        # Then, we sort the phrases by their position in the document.
-                        phrase_importance = sorted(phrase_importance, key=lambda x: x[0])
-                        text += " ".join([full_text[phrase[0]] for phrase in phrase_importance])
+                    if "summarized_text" in data[doc]:
+                        text += data[doc]["summarized_text"]
                     else:
-                        text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
+                        if args.summarized:
+                            full_text = data[doc]["full_text"]
+                            phrase_importance = []
+                            i = 0
+
+                            for imp in data[doc]["importance"]:
+                                if math.isnan(imp):
+                                    imp = 0
+                                phrase_importance.append((i, imp))
+                                i += 1
+                            
+                            phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
+
+                            # First, we get the most important phrases until the maximum length is reached.
+                            if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
+                                backup = deepcopy(phrase_importance)
+                                while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
+                                    phrase_importance = phrase_importance[:-1]
+                                phrase_importance.append(backup[len(phrase_importance)])
+
+                            # Then, we sort the phrases by their position in the document.
+                            phrase_importance = sorted(phrase_importance, key=lambda x: x[0])
+                            text += " ".join([full_text[phrase[0]] for phrase in phrase_importance])
+                        else:
+                            text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
                 
                 text = re.sub(r'\r', '', text)
                 
@@ -230,22 +363,7 @@ def process_year(path, tokenizer_name, args):
 
     return list_inputs, list_masks, list_labels, to_print
 
-def process_datasets(data_path, output_path, lang_dir, tokenizer_name):
-    """
-    Process the datasets and save them in the specified directory.
-
-    :param data_path: Path to the data.
-    :param lang_dir: Language directory.
-    :param tokenizer_name: Name of the tokenizer to use.
-    """
-
-    list_inputs = []
-    list_masks = []
-    list_labels = []
-    list_stats = []
-    list_years = []
-
-    # If no years are specified, process all the downloaded years depending on the arguments.
+def get_years(data_path, lang_dir):
     args.summarized = False
     if args.years == "all":
         args.years = [year for year in os.listdir(os.path.join(data_path, lang_dir))
@@ -270,7 +388,27 @@ def process_datasets(data_path, output_path, lang_dir, tokenizer_name):
             args.summarized = True
         del data
 
+    if args.summarized:
+        print(f"### Files are summarized ###")
     print(f"Files to process: {', '.join(args.years)}\n")
+
+def process_datasets(data_path, output_path, lang_dir, tokenizer_name):
+    """
+    Process the datasets and save them in the specified directory.
+
+    :param data_path: Path to the data.
+    :param lang_dir: Language directory.
+    :param tokenizer_name: Name of the tokenizer to use.
+    """
+
+    list_inputs = []
+    list_masks = []
+    list_labels = []
+    list_stats = []
+    list_years = []
+
+    # If no years are specified, process all the downloaded years depending on the arguments.
+    get_years(data_path, lang_dir)
 
     for year in args.years:
         print(f"Processing file: '{year}'...")
@@ -290,9 +428,6 @@ def process_datasets(data_path, output_path, lang_dir, tokenizer_name):
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
     X = pad_sequence(list_inputs, batch_first=True, padding_value=tokenizer.pad_token_id).numpy()
     masks = pad_sequence(list_masks, batch_first=True, padding_value=0).numpy()
-
-    if not os.path.exists(os.path.join(output_path, lang_dir)):
-        os.makedirs(os.path.join(output_path, lang_dir))
 
     # Save the MultiLabelBinarizer.
     with open(os.path.join(output_path, lang_dir, "mlb_encoder.pickle"), "wb") as pickle_fp:
@@ -333,7 +468,137 @@ def preprocess_data():
         lang = directory
         print(f"Lang: '{lang}', Tokenizer: '{config[lang]}'")
 
+        if not os.path.exists(os.path.join(output_path, directory)):
+            os.makedirs(os.path.join(output_path, directory))
+
         process_datasets(args.data_path, output_path, directory, config[lang])
+
+def process_data_seeds():
+    with open(os.path.join(script_folder, "config/models.yml"), "r") as fp:
+        config = yaml.safe_load(fp)
+
+    print(f"Tokenizers config:\n{format(config)}")
+
+    if args.output_path:
+        output_path = args.output_path
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+    else:
+        output_path = args.data_path
+
+    for directory in os.listdir(args.data_path):
+        # If we specified one or more languages, we only process those.
+        if args.langs != "all" and directory not in args.langs.split(","):
+            continue
+        
+        print(f"\nWorking on directory: {format(directory)}...")
+        lang = directory
+        print(f"Lang: '{lang}', Tokenizer: '{config[lang]}'")
+
+        seedsFile = os.path.join(args.seed_path, lang + ".json")
+        if not os.path.exists(seedsFile):
+            print(f"File {seedsFile} does not exist, exiting")
+            exit()
+
+        if not os.path.exists(os.path.join(output_path, directory)):
+            os.makedirs(os.path.join(output_path, directory))
+
+        seed_data = {}
+        with open(seedsFile, "r") as f:
+            seed_data = json.load(f)
+
+        get_years(args.data_path, directory)
+
+        tokenizer_name = config[lang]
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+
+        list_years = []
+        list_stats = []
+
+        allData = {}
+        for year in args.years:
+            print(f"Processing file: '{year}'...")
+            data, to_print = process_year_data(os.path.join(args.data_path, directory, year), tokenizer_name, args)
+            allData.update(data)
+            list_years.append(year)
+            list_stats.append(to_print)
+
+        if not args.limit_tokenizer:
+            with open(os.path.join(output_path, directory, "stats.txt"), "w") as stats_fp:
+                for year, year_stats in zip(list_years, list_stats):
+                    stats_fp.write(f"Year: {year}\n{year_stats}\n\n")
+
+        for seed in seed_data:
+            print(f"Saving seed: {seed}")
+
+            totals = {}
+            thisData = {"x": [], "y": [], "m": []}
+            for l in seed_data[seed]:
+                totals[l] = 0
+
+                # l can be train, test, dev
+
+                for docID in seed_data[seed][l]:
+                    if docID not in allData:
+                        # print(f"Missing document {docID}")
+                        continue
+                    totals[l] += 1
+                    thisData["x"].append(allData[docID]["x"])
+                    thisData["y"].append(allData[docID]["y"])
+                    thisData["m"].append(allData[docID]["m"])
+
+            mlb = MultiLabelBinarizer()
+            y = mlb.fit_transform(thisData["y"])
+            X = pad_sequence(thisData["x"], batch_first=True, padding_value=tokenizer.pad_token_id).numpy()
+            masks = pad_sequence(thisData["m"], batch_first=True, padding_value=0).numpy()
+
+            # Save the MultiLabelBinarizer.
+            with open(os.path.join(output_path, directory, "mlb_encoder.pickle"), "wb") as pickle_fp:
+                pickle.dump(mlb, pickle_fp, protocol=pickle.HIGHEST_PROTOCOL)
+
+            # print(X.shape)
+            # print(y.shape)
+            # print(masks.shape)
+            # print(totals)
+
+            start = 0
+            for l in seed_data[seed]:
+
+                this_X = X[start:start + totals[l], :]
+                this_y = y[start:start + totals[l], :]
+                this_m = masks[start:start + totals[l], :]
+                start = totals[l]
+
+                # print(this_X.shape)
+                # print(this_y.shape)
+                # print(this_m.shape)
+
+                to_print = f"{seed} - {l}: {this_X.shape[0]}"
+                print(to_print)
+
+                with open(os.path.join(output_path, directory, "stats.txt"), "a+") as f:
+                    f.write(to_print + "\n")
+
+                if not os.path.exists(os.path.join(output_path, directory, f"split_{seed}")):
+                    os.makedirs(os.path.join(output_path, directory, f"split_{seed}"))
+
+                # Save the splits
+                np.save(os.path.join(output_path, directory, f"split_{seed}", f"{l}_X.npy"), this_X)
+                np.save(os.path.join(output_path, directory, f"split_{seed}", f"{l}_mask.npy"), this_m)
+                np.save(os.path.join(output_path, directory, f"split_{seed}", f"{l}_y.npy"), this_y)
+
+                if l == "train":
+                    # Save the counts of each label, useful for weighted loss
+                    sample_labs = mlb.inverse_transform(this_y)
+                    labs_count = {"total_samples": len(sample_labs), "labels": {label: 0 for label in mlb.classes_}}
+
+                    for sample in sample_labs:
+                        for label in sample:
+                            labs_count["labels"][label] += 1
+                    
+                    with open(os.path.join(output_path, directory, f"split_{seed}", "train_labs_count.json"), "w") as fp:
+                        json.dump(labs_count, fp)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -342,6 +607,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", metavar="FOLDER", type=str, help="Path to the folder where the summarized files will be saved (default: same as data_path)")
     parser.add_argument("--years", type=str, default="all", help="Year range to be processed, separated by a minus (e.g. 2010-2020 will get all the years between 2010 and 2020 included) or individual years separated by a comma (to use a single year, simply type it normally like '2016'). Write 'all' to process all the files in the folder.")
     parser.add_argument("--seeds", type=str, default="110", help="Seeds to be used for the randomization and creating the data splits, separated by a comma (e.g. 110,221).")
+    parser.add_argument("--seed_path", type=str, help="Folder with JSON files containing seeds information (this overwrites the --seeds option)")
     parser.add_argument("--add_title", action="store_true", default=False, help="Add the title to the text.")
     parser.add_argument("--title_only", action="store_true", default=False, help="Use only the title as input.")
     parser.add_argument("--max_length", type=int, default=512, help="Maximum number of words of the text to be processed.")
@@ -350,4 +616,7 @@ if __name__ == "__main__":
     parser.add_argument("--get_doc_ids", action="store_true", default=False, help="Get the document ids that are used in the splits. NOTE: only use for debugging.")
     args = parser.parse_args()
 
-    preprocess_data()
+    if args.seed_path:
+        process_data_seeds()
+    else:
+        preprocess_data()
