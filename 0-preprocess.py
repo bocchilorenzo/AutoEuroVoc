@@ -169,16 +169,19 @@ def process_year_data(path, tokenizer_name, args):
                         
                         phrase_importance = sorted(phrase_importance, key=lambda x: x[1], reverse=True)
 
-                        # First, we get the most important phrases until the maximum length is reached.
-                        if len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
-                            backup = deepcopy(phrase_importance)
-                            while len(" ".join([full_text[phrase[0]] for phrase in phrase_importance]).split()) > args.max_length:
-                                phrase_importance = phrase_importance[:-1]
-                            phrase_importance.append(backup[len(phrase_importance)])
+                        # Second option
+                        new_text = []
+                        phrase_index = 0
+                        while len(" ".join([full_text[phrase[0]] for phrase in new_text]).split()) < args.max_length and phrase_index < len(phrase_importance):
+                            new_text.append(phrase_importance[phrase_index])
+                            phrase_index += 1
 
                         # Then, we sort the phrases by their position in the document.
-                        phrase_importance = sorted(phrase_importance, key=lambda x: x[0])
-                        text += " ".join([full_text[phrase[0]] for phrase in phrase_importance])
+                        if len(new_text) > 0:
+                            new_text = sorted(new_text, key=lambda x: x[0])
+                            text += " ".join([full_text[phrase[0]] for phrase in new_text])
+                        else:
+                            text += " ".join([full_text[phrase[0]] for phrase in phrase_importance])
                     else:
                         text += data[doc]["full_text"] if "full_text" in data[doc] else data[doc]["text"]
             
