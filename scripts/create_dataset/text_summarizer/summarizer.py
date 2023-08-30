@@ -288,7 +288,6 @@ class Summarizer:
             simplifiedSentences = []
             for sentence in sentences:
                 simplifiedSentence = []
-                print(sentence)
                 for i in range(len(sentence["token"])):
                     pos = sentence["pos"][i]
                     if pos in allowedPos:
