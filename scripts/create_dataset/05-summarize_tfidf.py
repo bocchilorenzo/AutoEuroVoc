@@ -39,8 +39,6 @@ def summarize(args):
     if args.cache:
         cache = Cache(args.cache)
 
-    print(cache)
-
     print(f"Loading model for spaCy:", args.spacy_model)
     try:
         nlp = spacy.load(args.spacy_model)
