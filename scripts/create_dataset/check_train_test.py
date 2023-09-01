@@ -33,8 +33,6 @@ def process(args):
                 for label in data[doc]["eurovoc_classifiers"]:
                     freqs[label] += 1
 
-    print(freqs.most_common(10))
-
     for seed in seed_data:
         if seeds and seed not in seeds:
             continue
