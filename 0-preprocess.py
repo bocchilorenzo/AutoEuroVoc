@@ -503,6 +503,10 @@ def process_data_seeds():
             print(f"File {seedsFile} does not exist, exiting")
             exit()
 
+        seeds = []
+        if args.seeds:
+            seeds = args.seeds.split(",")
+
         if not os.path.exists(os.path.join(output_path, directory)):
             os.makedirs(os.path.join(output_path, directory))
 
@@ -532,6 +536,9 @@ def process_data_seeds():
                     stats_fp.write(f"Year: {year}\n{year_stats}\n\n")
 
         for seed in seed_data:
+            if seeds and seed not in seeds:
+                continue
+                
             print(f"Saving seed: {seed}")
 
             totals = {}
@@ -610,7 +617,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", metavar="FOLDER", type=str, help="Path to the folder where the summarized files will be saved (default: same as data_path)")
     parser.add_argument("--years", type=str, default="all", help="Year range to be processed, separated by a minus (e.g. 2010-2020 will get all the years between 2010 and 2020 included) or individual years separated by a comma (to use a single year, simply type it normally like '2016'). Write 'all' to process all the files in the folder.")
     parser.add_argument("--seeds", type=str, default="110", help="Seeds to be used for the randomization and creating the data splits, separated by a comma (e.g. 110,221).")
-    parser.add_argument("--seed_path", type=str, help="Folder with JSON files containing seeds information (this overwrites the --seeds option)")
+    parser.add_argument("--seed_path", type=str, help="Folder with JSON files containing seeds information (this modifies the --seeds option behavior)")
     parser.add_argument("--add_title", action="store_true", default=False, help="Add the title to the text.")
     parser.add_argument("--title_only", action="store_true", default=False, help="Use only the title as input.")
     parser.add_argument("--max_length", type=int, default=512, help="Maximum number of words of the text to be processed.")
