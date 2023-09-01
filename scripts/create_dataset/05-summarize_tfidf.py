@@ -13,15 +13,15 @@ import spacy
 import argparse
 from pagerange import PageRange
 
-from text_summarizer import lex_utils
-from text_summarizer import Cache
+from text_summarizer.lex_utils import get_data, allowedPos
+from text_summarizer.cache import Cache
 
 def summarize(args):
     print(f"Arguments: {args}")
 
     seeds = []
     if args.seeds:
-        seeds = args.seeds.split(",")        
+        seeds = args.seeds.split(",")
 
     print(f"Reading seeds file {args.seed_path}")
     with open(args.seed_path, "r") as f:
@@ -83,16 +83,16 @@ def summarize(args):
                         if s:
                             sentences = json.loads(s)
                         else:
-                            sentences = lex_utils.get_data(text, nlp, args.spacy_num_threads)
+                            sentences = get_data(text, nlp, args.spacy_num_threads)
                             cache.writeFile(docID, json.dumps(sentences))
                     else:
-                        sentences = lex_utils.get_data(text, nlp, args.spacy_num_threads)
+                        sentences = get_data(text, nlp, args.spacy_num_threads)
 
                     docLemmas = []
                     for sentence in sentences:
                         for i in range(len(sentence["token"])):
                             pos = sentence["pos"][i]
-                            if pos in lex_utils.allowedPos:
+                            if pos in allowedPos:
                                 docLemmas.append(sentence["lemma"][i])
 
                     if args.mode == "label":
@@ -138,10 +138,10 @@ def summarize(args):
                         if s:
                             sentences = json.loads(s)
                         else:
-                            sentences = lex_utils.get_data(text, nlp, args.spacy_num_threads)
+                            sentences = get_data(text, nlp, args.spacy_num_threads)
                             cache.writeFile(docID, json.dumps(sentences))
                     else:
-                        sentences = lex_utils.get_data(text, nlp, args.spacy_num_threads)
+                        sentences = get_data(text, nlp, args.spacy_num_threads)
                     
                     data[doc]["full_text"] = [sentence['text'] for sentence in sentences]
 
@@ -151,7 +151,7 @@ def summarize(args):
                         sentLemmas = []
                         for i in range(len(sentence["token"])):
                             pos = sentence["pos"][i]
-                            if pos in lex_utils.allowedPos:
+                            if pos in allowedPos:
                                 sentLemmas.append(sentence["lemma"][i])
 
                         sent_score = []

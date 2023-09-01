@@ -1,6 +1,27 @@
-from re import sub
+import re
+from pagerange import PageRange
+import os
 
 allowedPos = {"PROPN", "VERB", "NOUN", "ADJ", "ADV"}
+reYearFile = r"^([0-9]{4})([^0-9].*)?\.json(\.gz)?$"
+
+def get_years(years, directory, verbose=True):
+
+    outYears = {}
+    for yearFile in os.listdir(directory):
+        m = re.match(reYearFile, yearFile)
+        if os.path.isfile(os.path.join(directory, yearFile)) and m:
+            outYears[m.group(1)] = yearFile
+
+    if years and years != "all":
+        years = PageRange(years).pages
+        years = set([str(year) for year in years])
+        outYears = {k: outYears[k] for k in years}
+
+    if verbose:
+        print(f"Files to process: {', '.join(outYears.values())}")
+
+    return outYears
 
 def get_data(text, nlp, spacy_num_threads):
     """
@@ -55,5 +76,5 @@ def get_data(text, nlp, spacy_num_threads):
 
 def _fix_sentence(sentence):
     sentence['text'] = sentence['text'].replace("\n", " ")
-    sentence['text'] = sub(" +", " ", sentence['text']).strip()
+    sentence['text'] = re.sub(" +", " ", sentence['text']).strip()
     return sentence
