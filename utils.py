@@ -244,29 +244,29 @@ def calculate_metrics(y_true, y_pred, probs, to_return):
     for avg in averaging:
         to_return[f"recall_{avg}"] = recall_score(y_true, y_pred, average=avg, zero_division=0)
     
-    to_return["hamming_loss"] = hamming_loss(y_true, y_pred)
+    # to_return["hamming_loss"] = hamming_loss(y_true, y_pred)
     
-    for avg in averaging:
-        to_return[f"jaccard_{avg}"] = jaccard_score(y_true, y_pred, average=avg, zero_division=0)
+    # for avg in averaging:
+    #     to_return[f"jaccard_{avg}"] = jaccard_score(y_true, y_pred, average=avg, zero_division=0)
     
-    references = np.array(y_true)
-    predictions = np.array(y_pred)
-    to_return["matthews_macro"] = np.mean([
-        matthews_corrcoef(y_true=references[:, i], y_pred=predictions[:, i], sample_weight=None)
-        for i in range(references.shape[1])
-    ])
-    to_return["matthews_micro"] = matthews_corrcoef(y_true=references.ravel(), y_pred=predictions.ravel())
+    # references = np.array(y_true)
+    # predictions = np.array(y_pred)
+    # to_return["matthews_macro"] = np.mean([
+    #     matthews_corrcoef(y_true=references[:, i], y_pred=predictions[:, i], sample_weight=None)
+    #     for i in range(references.shape[1])
+    # ])
+    # to_return["matthews_micro"] = matthews_corrcoef(y_true=references.ravel(), y_pred=predictions.ravel())
     
-    for avg in averaging:
-        try:
-            to_return[f"roc_auc_{avg}"] = roc_auc_score(y_true, y_pred, average=avg)
-        except ValueError:
-            to_return[f"roc_auc_{avg}"] = 0.0
+    # for avg in averaging:
+    #     try:
+    #         to_return[f"roc_auc_{avg}"] = roc_auc_score(y_true, y_pred, average=avg)
+    #     except ValueError:
+    #         to_return[f"roc_auc_{avg}"] = 0.0
     
-    for k in [1, 3, 5, 10]:
-        to_return[f"ndcg_{k}"] = ndcg_score(y_true, y_pred, k=k)
+    # for k in [1, 3, 5, 10]:
+    #     to_return[f"ndcg_{k}"] = ndcg_score(y_true, y_pred, k=k)
 
-    to_return["zero_one_loss"] = int(zero_one_loss(y_true, y_pred, normalize=False))
+    # to_return["zero_one_loss"] = int(zero_one_loss(y_true, y_pred, normalize=False))
 
     to_return["total_samples"] = len(y_true)
 
