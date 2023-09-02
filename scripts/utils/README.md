@@ -26,3 +26,12 @@ This script updates the labels of the model. It is particularly useful when you 
 
 ## 04. Create mappings
 Useful if you want to use the inference script with textual labels instead of label ids. The script is 04-create_mappings.py and it takes no arguments. It will create a 'label_mappings' folder in the config directory for each of the label types and it will create the mappings in the various languages available.
+
+## 05. Print the scores of the models
+With this script you can directly compare the performance of two different models for the same language. The script will print and also save the t-test for the two models and also the average scores over their seeds in the preferred format, either latex or csv. The script is 05-print_scores.py and it takes the following arguments:
+- main_path: the path to the main models
+- summ_path: the path to the summarized models
+- save_path: the path to save the scores. If not provided, the scores will not be saved
+- lang: the language of the models
+- t_test: perform a t-test between the main and summarized models
+- print_type: latex or csv
