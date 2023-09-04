@@ -1,35 +1,64 @@
 import json
-from os import listdir, path, makedirs
+import os
 import gzip
 from tqdm import tqdm
 import argparse
 
+from text_summarizer.lex_utils import init_procedure, add_argument
+
+script_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..")
+
 def extract_documents(args):
-    path_docs = args.data_path
-    years = [name for name in listdir(path_docs) if path.isfile(path.join(path_docs, name)) and name.endswith(".json.gz")]
-    final_path = args.output_path
+    years = init_procedure(args.data_path, args.output_path, args.years)
 
-    makedirs(final_path, exist_ok=True)
+    if args.add_mt_do:
+        print("Loading MTs and DOs")
+        with open(os.path.join(script_folder, "config/domain_labels_position.json"), "r") as fp:
+            domain = json.load(fp)
+        with open(os.path.join(script_folder, "config/mt_labels_position.json"), "r") as fp:
+            microthesaurus = json.load(fp)
+        with open(os.path.join(script_folder, "config/mt_labels.json"), "r", encoding="utf-8") as file:
+            mt_labels = json.load(file)
 
-    print(f"Working on data from {path_docs}")
-    
-    for year in tqdm(years):
-        with gzip.open(path.join(path_docs, year), "rt", encoding="utf-8") as f:
+    for (year, yearFile) in tqdm(years.items()):
+        with gzip.open(os.path.join(args.data_path, yearFile), "rt", encoding="utf-8") as f:
             data = json.load(f)
+
             to_del = set()
             for doc in data:
+
                 # For each document in the file, only keep those with at least one Eurovoc classifier and without an empty text
                 if len(data[doc]["eurovoc_classifiers"]) == 0 or data[doc]["full_text"] == "":
                     to_del.add(doc)
+                    continue
+
+                # Add MT and DO labels
+                if args.add_mt_do:
+                    labels = set(data[doc]["eurovoc_classifiers"])
+                    to_add = set()
+                    for label in labels:
+                        if label in mt_labels:
+                            if mt_labels[label] in microthesaurus:
+                                to_add.add(mt_labels[label] + "_mt")
+                            if mt_labels[label][:2] in domain:
+                                to_add.add(mt_labels[label][:2] + "_do")
+                    
+                    labels = list(labels.union(to_add))
+                    data[doc]["eurovoc_classifiers"] = labels
+
             for doc in to_del:
                 del data[doc]
-            with gzip.open(path.join(final_path, year), "wt", encoding="utf-8") as f:
+
+            with gzip.open(os.path.join(args.output_path, year + ".json.gz"), "wt", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--data_path", type=str, default="./data/it", help="Path to the folder containing the .json.gz files")
-    parser.add_argument("--output_path", type=str, default="./data/it/extracted", help="Path to the folder where the output files will be saved")
+    parser = argparse.ArgumentParser(description="Extract documents containing EuroVoc labels", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    add_argument(parser, "years")
+    add_argument(parser, "data_path")
+    add_argument(parser, "output_path")
+
+    parser.add_argument("--add_mt_do", action="store_true", default=False, help="Add the MicroThesaurus and Domain labels.")
     
     args = parser.parse_args()
     extract_documents(args)

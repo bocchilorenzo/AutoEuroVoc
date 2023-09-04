@@ -1,5 +1,5 @@
 from os import makedirs, path, remove, rename
-from text_summarizer import Summarizer
+from text_summarizer.summarizer import Summarizer
 import json, gzip, argparse, zipfile, urllib.request
 from tqdm import tqdm
 from pagerange import PageRange

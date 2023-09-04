@@ -12,7 +12,7 @@ from copy import deepcopy
 from requests import post
 from time import sleep
 import spacy
-from text_summarizer import Cache
+from .cache import Cache
 spacy.prefer_gpu()
 import json
 

@@ -5,6 +5,30 @@ import os
 allowedPos = {"PROPN", "VERB", "NOUN", "ADJ", "ADV"}
 reYearFile = r"^([0-9]{4})([^0-9].*)?\.json(\.gz)?$"
 
+def add_argument(parser, arg_label, required=None):
+    if arg_label == "years":
+        required = False if required is None else required
+        parser.add_argument("--years", metavar="YEARS", type=str, required=required, default="all", help="Years to consider. If not specified, all the years will be considered. Multiple years can be specified either as a comma-separated list (e.g. 2019,2020,2021) or as a range (e.g. 2019-2021).")
+    if arg_label == "data_path":
+        required = True if required is None else required
+        parser.add_argument("--data_path", metavar="DIR", type=str, help="Path to the folder containing the .json.gz files", required=required)
+    if arg_label == "output_path":
+        required = True if required is None else required
+        parser.add_argument("--output_path", metavar="DIR", type=str, help="Path to the folder where the output files will be saved", required=required)
+    if arg_label == "seed_file":
+        required = True if required is None else required
+        parser.add_argument("--seed_file", metavar="FILE", type=str, help="Path to the JSON file with seeds information", required=required)
+    if arg_label == "seeds":
+        parser.add_argument("--seeds", type=str, default="110,221,332", help="Seeds to be used for the randomization and creating the data splits, separated by a comma (e.g. 110,221).")
+
+def init_procedure(input_path, output_path, years=None, verbose=True):
+    if output_path:
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+    if years:
+        years = get_years(years, input_path, verbose)
+    return years
+
 def get_years(years, directory, verbose=True):
 
     outYears = {}
@@ -19,7 +43,7 @@ def get_years(years, directory, verbose=True):
         outYears = {k: outYears[k] for k in years}
 
     if verbose:
-        print(f"Files to process: {', '.join(outYears.values())}")
+        print(f"### Years to process: {', '.join(outYears.keys())}")
 
     return outYears
 

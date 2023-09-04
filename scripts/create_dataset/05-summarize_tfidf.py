@@ -69,10 +69,12 @@ def summarize(args):
             docs_to_process = []
 
         print("Reading files...")
-        for file in tqdm(file_list):
+        for file in (pbar := tqdm(file_list)):
+            pbar.set_description(file)
             with gzip.open(path.join(main_dir, file), "rt", encoding="utf-8") as f:
                 data = json.load(f)
-                for doc in data:
+                for doc in (pbar2 := tqdm(data.keys(), leave=False)):
+                    pbar2.set_description(doc)
                     if doc not in trainList:
                         continue
 
@@ -183,7 +185,8 @@ def summarize(args):
     print("Done!")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="TFIDF-based summarizer for the dataset", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="TFIDF-based summarizer for the dataset.\nIMPORTANT: the script will create a folder for each seed",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--data_path", type=str, default="./data/it/extracted/few_labels_removed", help="Directory containing the input dataset")
     parser.add_argument("--output_path", type=str, default="./data-summ/it", help="Directory containing the output dataset")
 
