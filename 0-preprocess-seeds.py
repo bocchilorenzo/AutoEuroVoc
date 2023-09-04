@@ -236,7 +236,7 @@ def process_data_seeds(args):
             this_X = X[start:start + totals[l], :]
             this_y = y[start:start + totals[l], :]
             this_m = masks[start:start + totals[l], :]
-            start = totals[l]
+            start += totals[l]
 
             # print(this_X.shape)
             # print(this_y.shape)
