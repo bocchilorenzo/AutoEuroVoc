@@ -106,7 +106,7 @@ class CustomTrainer(Trainer):
         return (loss, outputs) if return_outputs else loss
     
 
-def sklearn_metrics_core(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False):
+def sklearn_metrics_core(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False, seed=None):
     """
     Shared code for the sklearn metrics.
 
@@ -122,18 +122,27 @@ def sklearn_metrics_core(y_true, predictions, data_path, threshold=0.5, get_conf
     probs = sigmoid(Tensor(predictions))
     y_pred = (probs.detach().numpy() >= threshold).astype(int)
 
+    conf_matrix = None
     if get_conf_matrix:
-        with open(os.path.join(data_path, 'mlb_encoder.pickle'), 'rb') as f:
-            mlb_encoder = pickle.load(f)
-        
-        # labels = mlb_encoder.inverse_transform(np.ones((1, y_true.shape[1])))[0]
-        labels = mlb_encoder.classes_.tolist()
-        mlb_conf = multilabel_confusion_matrix(y_true, y_pred)
-        conf_matrix = {}
-        for i in range(len(labels)):
-            conf_matrix[labels[i]] = mlb_conf[i].tolist()
-    else:
-        conf_matrix = None
+        mlbe_exists = False
+        mlbe_pickle_path = os.path.join(data_path, 'mlb_encoder.pickle')
+        if os.path.exists(mlbe_pickle_path):
+            mlbe_exists = True
+        if not mlbe_exists and seed:
+            mlbe_pickle_path = os.path.join(data_path, seed, 'mlb_encoder.pickle')
+            if os.path.exists(mlbe_pickle_path):
+                mlbe_exists = True
+
+        if mlbe_exists:
+            with open(mlbe_pickle_path, 'rb') as f:
+                mlb_encoder = pickle.load(f)
+            
+            # labels = mlb_encoder.inverse_transform(np.ones((1, y_true.shape[1])))[0]
+            labels = mlb_encoder.classes_.tolist()
+            mlb_conf = multilabel_confusion_matrix(y_true, y_pred)
+            conf_matrix = {}
+            for i in range(len(labels)):
+                conf_matrix[labels[i]] = mlb_conf[i].tolist()
     
     if get_class_report:
         class_report = classification_report(y_true, y_pred, zero_division=0, output_dict=True, digits=4)
@@ -148,7 +157,7 @@ def sklearn_metrics_core(y_true, predictions, data_path, threshold=0.5, get_conf
     return probs, y_pred, conf_matrix, class_report, to_return
 
 
-def sklearn_metrics_full(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False, parent_handling="none"):
+def sklearn_metrics_full(y_true, predictions, data_path, threshold=0.5, get_conf_matrix=False, get_class_report=False, parent_handling="none", seed=None):
     """
     Return all the metrics and the classification report for the predictions.
     
@@ -160,7 +169,7 @@ def sklearn_metrics_full(y_true, predictions, data_path, threshold=0.5, get_conf
     :param parent_handling: How to handle the parent labels.
     :return: A dictionary with the metrics and a classification report.
     """
-    probs, y_pred, conf_matrix, class_report, to_return = sklearn_metrics_core(y_true, predictions, data_path, threshold, get_conf_matrix, get_class_report)
+    probs, y_pred, conf_matrix, class_report, to_return = sklearn_metrics_core(y_true, predictions, data_path, threshold, get_conf_matrix, get_class_report, seed)
 
     to_return = calculate_metrics(y_true, y_pred, probs, to_return)
 
@@ -263,8 +272,8 @@ def calculate_metrics(y_true, y_pred, probs, to_return):
     #     except ValueError:
     #         to_return[f"roc_auc_{avg}"] = 0.0
     
-    # for k in [1, 3, 5, 10]:
-    #     to_return[f"ndcg_{k}"] = ndcg_score(y_true, y_pred, k=k)
+    for k in [1, 3, 5, 10]:
+        to_return[f"ndcg_{k}"] = ndcg_score(y_true, y_pred, k=k)
 
     # to_return["zero_one_loss"] = int(zero_one_loss(y_true, y_pred, normalize=False))
 

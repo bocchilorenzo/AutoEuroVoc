@@ -7,6 +7,7 @@ import json
 
 language = ""
 current_model = ""
+current_seed = ""
 
 def get_metrics(y_true, predictions, threshold=0.5):
     """
@@ -19,6 +20,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
     """
     global current_model
     global language
+    global current_seed
 
     metrics, class_report, conf_matrix = sklearn_metrics_full(
         y_true,
@@ -28,6 +30,7 @@ def get_metrics(y_true, predictions, threshold=0.5):
         True,
         True,
         args.parents,
+        current_seed
     )
 
     # Save the classification report
@@ -76,6 +79,7 @@ def start_evaluate():
 
     global language
     global current_model
+    global current_seed
         
     language = args.lang
 
@@ -92,6 +96,7 @@ def start_evaluate():
             print(f"Models for seed {seed} not found. Skipping...")
             continue
 
+        current_seed = seed
         # Load the data
         test_set = load_data(args.data_path, args.lang, "test", seed)
 
