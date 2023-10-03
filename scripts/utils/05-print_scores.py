@@ -4,7 +4,7 @@ from os import path, listdir
 import json
 import argparse
 
-def get_scores(main_path, summarized_path, save_path, lang="en", t_test=False, print_type="latex"):
+def get_scores(main_path, summarized_path, save_path, t_test=False, print_type="latex"):
     def _replace_keys(array):
         scores_dict, max_scores_dict = {}, {}
         for score in array:
@@ -52,11 +52,11 @@ def get_scores(main_path, summarized_path, save_path, lang="en", t_test=False, p
     datasumm_seeds = []
 
     for data_path in [main_path, summarized_path if summarized_path else main_path]:
-        for model_folder in sorted(listdir(path.join(data_path, lang))):
+        for model_folder in sorted(listdir(data_path)):
             data_seeds.append(model_folder) if data_path == main_path else datasumm_seeds.append(model_folder)
-            checkpoint = [folder for folder in listdir(path.join(data_path, lang, model_folder)) if "checkpoint" in folder][0]
+            checkpoint = [folder for folder in listdir(path.join(data_path, model_folder)) if "checkpoint" in folder][0]
 
-            with open(path.join(data_path, lang, model_folder, checkpoint, "evaluation", "metrics.json"), "r") as f:
+            with open(path.join(data_path, model_folder, checkpoint, "evaluation", "metrics.json"), "r") as f:
                 data.append(json.load(f)) if data_path == main_path else datasumm.append(json.load(f))
     
     assert len(data) == len(datasumm), "The number of models in the main path and the summarized path must be the same"
@@ -150,12 +150,10 @@ if __name__ == "__main__":
                         help='Path to the summarized models.')
     parser.add_argument('--save_path', type=str, required=False, default="",
                         help='Path to save the scores. If not provided, the scores will not be saved.')
-    parser.add_argument('--lang', type=str, required=False, default="en",
-                        help='Language of the models.')
     parser.add_argument('--t_test', action='store_true',
                         help='Perform a t-test between the main and summarized models.')
     parser.add_argument('--print_type', type=str, required=False, default="latex",
                         choices=["latex", "csv"], help='Print type: latex or csv.')
     args = parser.parse_args()
 
-    get_scores(args.main_path, args.summ_path, args.save_path, args.lang, args.t_test, args.print_type)
+    get_scores(args.main_path, args.summ_path, args.save_path, args.t_test, args.print_type)
