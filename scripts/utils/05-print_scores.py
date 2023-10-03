@@ -54,9 +54,16 @@ def get_scores(main_path, summarized_path, save_path, t_test=False, print_type="
     for data_path in [main_path, summarized_path if summarized_path else main_path]:
         for model_folder in sorted(listdir(data_path)):
             data_seeds.append(model_folder) if data_path == main_path else datasumm_seeds.append(model_folder)
-            checkpoint = [folder for folder in listdir(path.join(data_path, model_folder)) if "checkpoint" in folder][0]
+            last_checkpoint = max(
+                [
+                    int(f.split("-")[1])
+                    for f in listdir(path.join(data_path, model_folder))
+                    if f.startswith("checkpoint-") and path.isdir(path.join(data_path, model_folder, f))
+                ]
+            )
+            last_checkpoint = path.join(data_path, model_folder, f"checkpoint-{last_checkpoint}")
 
-            with open(path.join(data_path, model_folder, checkpoint, "evaluation", "metrics.json"), "r") as f:
+            with open(path.join(last_checkpoint, "evaluation", "metrics.json"), "r") as f:
                 data.append(json.load(f)) if data_path == main_path else datasumm.append(json.load(f))
     
     assert len(data) == len(datasumm), "The number of models in the main path and the summarized path must be the same"
