@@ -35,3 +35,8 @@ With this script you can directly compare the performance of two different model
 - lang: the language of the models
 - t_test: perform a t-test between the main and summarized models
 - print_type: latex or csv
+
+## 06. Create graphs for the stats
+This script creates graphs for the stats of the models. The script is 06-create_graphs.py and it takes the following arguments:
+- stats_path: the path to the folder with the stats files previously generated
+- output_path: the path to the folder where to save the graphs
