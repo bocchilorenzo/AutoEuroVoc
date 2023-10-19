@@ -40,3 +40,9 @@ With this script you can directly compare the performance of two different model
 This script creates graphs for the stats of the models. The script is 06-create_graphs.py and it takes the following arguments:
 - stats_path: the path to the folder with the stats files previously generated
 - output_path: the path to the folder where to save the graphs
+
+## 07. Get the stats for the data
+This script gets the stats for the data regarding the number of labels and documents removed after trimming the dataset with a threshold (using the script in create_dataset/02-remove_few_labels.py). The script is 07-get_dataset_stats.py and it takes the following arguments:
+- full: the path to the folder for the full data, organized by language
+- truncated: the path with the truncated data, organized by language
+- output: the path for the output folder
